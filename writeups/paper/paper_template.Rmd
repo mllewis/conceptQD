@@ -1,0 +1,94 @@
+---
+title             : "A Title"
+shorttitle        : "A Short Title"
+
+author:  
+  - name          : "Molly Y. Lewis"
+    affiliation   : "1"
+    corresponding : yes    # Define only one corresponding author
+    address       : ""
+    email         : "mollyllewis@gmail.com"
+  - name          : "A Co-Author"
+    affiliation   : "2"
+    email         : "a co-author email"
+affiliation:
+  - id            : "1"
+    institution   : "Department of Psychology, Carnegie Mellon University"
+  - id            : "2"
+    institution   : "Co-author affiliation"
+    
+author_note: |
+  There are people we'd like to thank.
+
+abstract: |
+  so abstract!
+  
+keywords          : "keyword1"
+wordcount         : ""
+
+bibliography      : ["references.bib"]
+header-includes:
+  - \usepackage{setspace}
+  - \usepackage{float}
+  - \usepackage{graphicx}
+  - \AtBeginEnvironment{tabular}{\singlespacing}
+  - \usepackage{pbox}
+  - \usepackage{hyphsubst}
+  - \floatplacement{figure}{t!} # make every figure with caption = t
+
+figsintext        : yes
+figurelist        : no
+tablelist         : no
+footnotelist      : no
+lineno            : no
+lang              : "english"
+documentclass     : "apa6"
+class             : "man"
+output:
+  papaja::apa6_pdf:  #word_document 
+    latex_engine: xelatex # this solved an encoding issue
+    includes: 
+      after_body: appendix.tex
+---
+
+```{r load_utility_packages, include = FALSE}
+library(papaja)
+library(rmarkdown)
+library(tidyverse) 
+library(here)
+```
+
+```{r global_options, include = FALSE}
+knitr::opts_chunk$set(warning = FALSE, 
+                      message = FALSE, 
+                      cache = FALSE,
+                      echo = FALSE,
+                      fig.pos = "t!")
+```
+
+Woo! An intro.
+
+# Methods
+
+## Participants
+
+```{r child = "sections/section1.Rmd"}
+```
+
+# General Discussion
+
+
+\newpage
+
+# References
+
+---
+nocite: |
+...
+  
+```{r appendix}
+render_appendix("appendix.Rmd")
+```
+
+\setlength{\parindent}{-0.5in}
+\setlength{\leftskip}{0.5in}
