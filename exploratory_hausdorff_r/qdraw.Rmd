@@ -1,0 +1,143 @@
+---
+title: "Brief Summary and Exploration of a Small Set *Quick, Draw!* Drawings"
+author: "Bin Zheng"
+date: "2020/5/18"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(quickdraw)
+library(cloudml)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Introduction
+
+Google's [Quick, Draw!](https://quickdraw.withgoogle.com/) is a fun little game for players all over the world to doodle according to 6 prompts. These drawings and the data associates with it are shared for people to explore and study from.
+
+
+# Exploratory Data Analysis
+
+### Data
+
+The data we are working with is the drawings collected over a roughly two month period from 01/23/2017 to 03/29/2017 for [345 prompts](https://github.com/googlecreativelab/quickdraw-dataset/blob/master/categories.txt) in the developmental quickdraw package by *@huizezhang-sherry* on [GitHub](https://github.com/huizezhang-sherry/quickdraw). 
+
+We will be using a list of 294 prompts that does not contain spaces because my machine can't read those data. For example, prompts like `aircraft carrier` and `The Eiffel Tower` will be excluded. For each of the 294 prompts, there are 100000+ drawings associated with it. Each drawing has the following variables:
+
+`word` - a chr variable that represents the prompt (ex. "moon" or "bread)  
+`countrycode`'`- a chr variable that are 2 letter strings representing the country that the drawing is drawn (ex. "US" or "RU")  
+`timestamp`- a chr variable containing the time stamp of when the drawing is drawn in the format`"YYYY-MM-DD HH:MM:SS.SSSSS UTC"`    
+`recognized` - a logi variable that represents whether the drawing was successfully recognized by the game     
+`key_id` - a chr variable that is a unique id that associates with the drawing     
+`drawing` - a list containing the x and y coordinates along with a timestamp that represents the strokes of the drawing     
+
+I will be using 20 randomly selected prompts (out of 294) because my laptop is slow...
+
+```{r, include=FALSE}
+ categories <- qd_categories()
+ categories <- categories[!grepl(" ", categories)]
+
+ categories_sample <- sample(categories, 20)
+ categories_sample
+
+ sample <- qd_read(categories_sample[1])
+ sample <- select(sample, -drawing)
+ for(i in 1:19)
+ {
+  new <- qd_read(categories_sample[i+1])
+  new <- select(new, -drawing)
+  sample <- full_join(sample, new)
+ }
+```
+
+### Some basic summaries and tables/graphs
+
+**Number of drawings by country**
+
+
+```{r}
+copy1 <- sample
+copy1 %>%
+  group_by(countrycode) %>%
+  summarise(number = n()) %>%
+  arrange(desc(number)) %>%
+  summary()
+```
+
+From this summary output, we can infer that at least 209 countries contributed to the [Quick, Draw!](https://quickdraw.withgoogle.com/) dataset. Most countries contributed to less than 5143 drawings, but the mean number of drawings is almost triple of the 3rd quartile, meaning that some countries contributed to a lot of drawings. The maximum number of countries that any one country contributed to is 1371782, which is more than 90 times the mean number of drawings. 
+
+```{r}
+copy1 <- sample
+copy1 %>%
+  group_by(countrycode) %>%
+  summarise(number = n()) %>%
+  arrange(desc(number))
+```
+
+From this table, we can see some possible relationships between countries and the number of drawings. For example, English-speaking countries and countries with higher populations may contributes to more drawings. 
+
+**Number of drawing per prompt**
+
+```{r}
+copy2 <- sample
+copy2 %>%
+  group_by(word) %>%
+  summarise(number = n()) %>%
+  arrange(desc(number)) -> copy2
+
+barplot(copy2$number, ylim = c(0,300000), names.arg = copy2$word, las = 2, cex.names = 0.8)
+
+summary(copy2)
+```
+
+It seems like some prompts are more likely than the others (some are even more than twice as often!), this is something that we may look a little further into later on.
+
+
+**Proportions of recognized drawings per prompt**
+
+```{r}
+copy3 <- sample
+copy3 %>%
+  group_by(word) %>%
+  count(recognized = recognized == TRUE) -> prop_recognized
+
+
+prop_t <- filter(prop_recognized, recognized == TRUE)
+prop_f <- filter(prop_recognized, recognized == FALSE)
+prop_recognized <- tibble(word = categories_sample, prop = prop_t$n / (prop_t$n + prop_f$n))
+
+prop_recognized <- arrange(prop_recognized, desc(prop))
+barplot(prop_recognized$prop, ylab = "Proportions Recognized", names.arg = prop_recognized$word, las = 2, ylim = c(0,1), cex.names = 0.8)
+
+summary(prop_recognized)
+
+```
+
+It seems like the game is pretty good at recognizing players' doodles and there are no obvious relationships between categories and the proportions of drawings recognized. The next step may be to replicate this on the full set of prompts.  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
