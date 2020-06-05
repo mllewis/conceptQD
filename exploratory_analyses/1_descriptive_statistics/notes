@@ -1,1 +1,6 @@
 placeholder
+
+
+BIG QUERY:
+https://stackoverflow.com/questions/62205566/loading-nested-array-into-bigquery-from-public-google-cloud-dataset/62210708#62210708
+bq load --F \\t conceptqd:anvils.eraser gs://quickdraw_dataset/full/simplified/eraser.ndjson row

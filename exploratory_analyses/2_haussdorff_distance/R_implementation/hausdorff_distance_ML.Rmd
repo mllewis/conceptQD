@@ -1,0 +1,44 @@
+---
+title: Haussdorff Distance Exploration
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc_float: yes
+    number_sections: no
+    code_folding: hide
+    toc: yes
+---
+
+```{r, include = F}
+library(tidyverse)
+library(here)
+```
+
+## Load data
+```{r}
+DISTANCE_DF_PATH <- here("data/processed/human_data/conceptviz_1_by_item_data_with_hausdorff_r.csv")
+
+distance_data <- read_csv(DISTANCE_DF_PATH)
+```
+
+
+## Plot data
+```{r}
+distance_data_with_log <- distance_data %>%
+  mutate(log_hausdorff = log(hausdorff))
+
+ggplot(distance_data_with_log, aes(x = log_hausdorff, y = human_rating_mean)) +
+  geom_point() +
+  geom_linerange(aes(ymin = ci_lower_human, ymax = ci_upper_human)) +
+  geom_smooth(method = "lm") +
+  theme_classic() 
+```
+
+## Fit models
+```{r}
+cor.test(distance_data_with_log$log_hausdorff, 
+         distance_data_with_log$human_rating_mean)
+
+lm(human_rating_mean ~ log_hausdorff, distance_data_with_log) %>%
+  summary()
+```
