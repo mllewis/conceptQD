@@ -1,0 +1,88 @@
+---
+title: "Calculating Various Distances Between the Pairs of Drawings"
+author: "Bin Zheng"
+date: "2020/6/08"
+output: html_document
+---
+
+To do:  
+- Figure out how to use here  
+- Find the Mahalanobis distance between two curves  
+- Calculate the distances for the first strokes (1-3 for now)
+
+```{r}
+library(tidyverse)
+library(quickdraw)
+library(cloudml)
+library(here)
+library(ecr)
+library(pracma)
+library(StatMatch)
+
+#Reading all the necessary data
+bread <- qd_read("bread")
+tree <- qd_read("tree")
+data <- readr::read_csv("https://raw.githubusercontent.com/mllewis/conceptQD/master/data/processed/human_data/conceptviz_1_by_item_data.csv")
+```
+
+```{r}
+#Adding new colomns in the dataset for the distances
+data <- dplyr::mutate(data, hausdorff = 0, avg_hausdorff = 0, mahalanobis = 0)
+```
+
+```{r}
+#Calculates the distances for the 200 pairs on "bread" and storing it in the dataset
+for(i in 1:200)
+{
+  id1 = toString(data$drawing_key_id_1[i])
+  id2 = toString(data$drawing_key_id_2[i])
+
+  row1 <- which(bread$key_id == id1)
+  row2 <- which(bread$key_id == id2)
+  
+  tidied1 <- qd_tidy(bread, row1)
+  tidied2 <- qd_tidy(bread, row2)
+  
+  drawing1 <- matrix(c(tidied1$x, tidied1$y), length(tidied1$x), 2)
+  drawing2 <- matrix(c(tidied2$x, tidied2$y), length(tidied2$x), 2)
+
+  data$hausdorff[i] <- hausdorff_dist(drawing1, drawing2)
+  data$mahalanobis[i] <- mean(mahalanobis.dist(drawing1, drawing2))
+  
+  drawing1 <- matrix(c(tidied1$x, tidied1$y), 2, length(tidied1$x), byrow = TRUE)
+  drawing2 <- matrix(c(tidied2$x, tidied2$y), 2, length(tidied2$x), byrow = TRUE)
+  
+  data$avg_hausdorff[i] <- computeAverageHausdorffDistance(drawing1, drawing2)
+}
+```
+
+```{r}
+#Calculates the distances for the 200 pairs on "tree" and storing it in the dataset
+for(i in 1:200)
+{
+  id1 = toString(data$drawing_key_id_1[i+200])
+  id2 = toString(data$drawing_key_id_2[i+200])
+
+  row1 <- which(tree$key_id == id1)
+  row2 <- which(tree$key_id == id2)
+  
+  tidied1 <- qd_tidy(tree, row1)
+  tidied2 <- qd_tidy(tree, row2)
+  
+  drawing1 <- matrix(c(tidied1$x, tidied1$y), length(tidied1$x), 2)
+  drawing2 <- matrix(c(tidied2$x, tidied2$y), length(tidied2$x), 2)
+
+  data$hausdorff[i+200] <- hausdorff_dist(drawing1, drawing2)
+  data$mahalanobis[i+200] <- mean(mahalanobis.dist(drawing1, drawing2))
+  
+  drawing1 <- matrix(c(tidied1$x, tidied1$y), 2, length(tidied1$x), byrow = TRUE)
+  drawing2 <- matrix(c(tidied2$x, tidied2$y), 2, length(tidied2$x), byrow = TRUE)
+  
+  data$avg_hausdorff[i+200] <- computeAverageHausdorffDistance(drawing1, drawing2)
+}
+```
+
+```{r}
+#Getting the csv file
+write.csv(data,"C:\\Users\\binz7\\Desktop\\conceptviz_1_by_item_data_with_various_metrics_r.csv")
+```
