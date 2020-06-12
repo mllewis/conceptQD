@@ -1,0 +1,194 @@
+---
+title: "Exploration of Various Distances Between the Pairs of Drawings with Human Judgements"
+author: "Bin Zheng"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    theme: cosmo
+    toc_float: yes
+    number_sections: no
+    code_folding: hide
+    toc: yes
+---
+
+```{r, include = FALSE}
+library(tidyverse)
+
+orig_data <- readr::read_csv("https://raw.githubusercontent.com/mllewis/conceptQD/master/data/processed/human_data/conceptviz_1_by_item_data.csv")
+dist_data <- readr::read_csv("https://raw.githubusercontent.com/mllewis/conceptQD/master/data/processed/human_data/conceptviz_1_by_item_data_with_various_metrics_r.csv")
+```
+
+### Introduction
+
+When considering a set of drawings from Google's *Quick, Draw!*, one quality that's worth looking into is the similarity between images. There are many approaches to quantify how similar two drawings are. What we are most interested in is human judgements of how similar two images are. But collecting such data on a large scale is not very feasible. In this exploration, we will see if various distance metrics such as the Hausdorff, Average Hausdorff, Mahalanobis, and Euclidean distances are useful in predictng human judgements for the similarity between two images. 
+
+### Data
+
+In the original data, we have a set of 400 pairs of drawing: 200 pairs for the prompt "bread" and 200 pairs for the prompt "tree." For each pair of drawings, we have:
+
+`pair_id`: a number ranging from 1 to 400, labelling each of the 400 pairs of drawings  
+`category`: tells us if the pair are drawings of "bread" or drawings of "tree"  
+`drawing_key_id_1`: the unique drawing ID for the first drawing of the pair  
+`drawing_key_id_2`: the unique drawing ID for the second drawing of the pair  
+`ci_lower_human`: the lower bound of the confidence interval for the mean of human ratings  
+`ci_upper_human`: the upper bound of the confidence interval for the mean of human ratings    
+`human_rating_mean`: the mean of the human ratings for the pair of drawings, the lower the more similar   
+`n_participants`: the number of people who judged the pair of drawings  
+
+In the data we are using, there are four addtional colomns:
+
+`hausdorff`: the Hausdorff distance between the two drawings  
+`avg_hausdorff`: the Average Hausdorff distance between the two drawings  
+`mahalanobis`: the Mahalanobis distance between the two drawings  
+`euclidean`: the Euclidean distance between the two drawings  
+
+All the distances are calculated with the concatenated strokes of the drawings. The Mahalanobis/Euclidean distances between two curves are calculated by taking the mean of the Mahalanobis/Euclidean distances between all the combinations of two points, one point from each drawing.  
+
+
+### Univariate Data Analysis
+
+          
+First, we look at each variable individually with histograms and providing a numerical summary for each variable.
+
+```{r}
+hist(dist_data$human_rating_mean,
+  main = "Human Judgement",
+  xlab = "human_rating_mean")
+summary(dist_data$human_rating_mean)
+```
+
+`IQR`: `r IQR(dist_data$human_rating_mean)`  
+`Standard Deviation`: `r sd(dist_data$human_rating_mean)`   
+
+```{r}
+hist(dist_data$hausdorff,
+  main = "Hausdorff Distance",
+  xlab = "hausdorff")
+summary(dist_data$hausdorff)
+```
+`IQR`: `r IQR(dist_data$hausdorff)`  
+`Standard Deviation`: `r sd(dist_data$hausdorff)`
+
+```{r}
+hist(dist_data$human_rating_mean,
+  main = "Average Hausdorff Distance",
+  xlab = "avg_hausdorff")
+summary(dist_data$avg_hausdorff)
+```
+`IQR`: `r IQR(dist_data$avg_hausdorff)`  
+`Standard Deviation`: `r sd(dist_data$avg_hausdorff)`
+
+```{r}
+hist(dist_data$mahalanobis,
+  main = "Mahalanobis Distance",
+  xlab = "mahalanobis")
+summary(dist_data$mahalanobis)
+```
+`IQR`: `r IQR(dist_data$mahalanobis)`  
+`Standard Deviation`: `r sd(dist_data$mahalanobis)`
+
+```{r}
+hist(dist_data$euclidean,
+  main = "Euclidean Distance",
+  xlab = "euclidean")
+summary(dist_data$euclidean)
+```
+`IQR`: `r IQR(dist_data$euclidean)`  
+`Standard Deviation`: `r sd(dist_data$euclidean)`
+
+We can see that the distribution of our variables are unimodal and rather skewed, with the exception of `euclidean`, which is slightly skewed right. We may need to consider some transformations later on. But for now, we will proceed as is.
+
+### Bivariate Data Analysis
+
+Now we will explore the relationship between `human_rating_mean` and each of the predictors with bivariate EDA.
+
+```{r}
+ggplot(dist_data, aes(x = hausdorff, y = human_rating_mean)) +
+  geom_point() +
+  geom_smooth(formula = y ~ x, method = "lm")
+cor(x = dist_data$hausdorff, y = dist_data$human_rating_mean)
+
+ggplot(dist_data, aes(x = avg_hausdorff, y = human_rating_mean)) +
+  geom_point() +
+  geom_smooth(formula = y ~ x, method = "lm")
+cor(x = dist_data$avg_hausdorff, y = dist_data$human_rating_mean)
+
+ggplot(dist_data, aes(x = mahalanobis, y = human_rating_mean)) +
+  geom_point() +
+  geom_smooth(formula = y ~ x, method = "lm")
+cor(x = dist_data$mahalanobis, y = dist_data$human_rating_mean)
+
+ggplot(dist_data, aes(x = euclidean, y = human_rating_mean)) +
+  geom_point() +
+  geom_smooth(formula = y ~ x, method = "lm")
+cor(x = dist_data$euclidean, y = dist_data$human_rating_mean)
+```
+From the scatterplots and pearson correlations, there appears to be no/little clear linear relationship between the response variable and the preditor variables. The best performing predictor is `mahalanobis` with an r value of 0.3581 and the worst being `euclidean` with an r value of 0.0876. This may be due to the skewness of the distributions of our variables. We will transform the variables to see if there is a clearer relationship between the transformed response variable and the transformed predictors.
+
+```{r}
+dist_data_transformed <- dist_data %>%
+  dplyr::mutate(sq_human_rating_mean = human_rating_mean^2, 
+         log_hausdorff = log(hausdorff), 
+         log_avg_hausdorff = log(avg_hausdorff), 
+         log_mahalanobis = log(mahalanobis), 
+         log_euclidean = log(euclidean))
+```
+
+```{r}
+ggplot(dist_data_transformed, aes(x = log_hausdorff, y = sq_human_rating_mean)) +
+  geom_point() +
+  geom_smooth(formula = y ~ x, method = "lm")
+cor(x = dist_data_transformed$log_hausdorff, y = dist_data_transformed$sq_human_rating_mean)
+
+ggplot(dist_data_transformed, aes(x = log_avg_hausdorff, y = sq_human_rating_mean)) +
+  geom_point() +
+  geom_smooth(formula = y ~ x, method = "lm")
+cor(x = dist_data_transformed$log_avg_hausdorff, y = dist_data_transformed$sq_human_rating_mean)
+
+ggplot(dist_data_transformed, aes(x = log_mahalanobis, y = sq_human_rating_mean)) +
+  geom_point() +
+  geom_smooth(formula = y ~ x, method = "lm")
+cor(x = dist_data_transformed$log_mahalanobis, y = dist_data_transformed$sq_human_rating_mean)
+
+ggplot(dist_data_transformed, aes(x = log_euclidean, y = sq_human_rating_mean)) +
+  geom_point() +
+  geom_smooth(formula = y ~ x, method = "lm")
+cor(x = dist_data_transformed$log_euclidean, y = dist_data_transformed$sq_human_rating_mean)
+```
+
+After transforming the variables, the pearson correlations are slightly better, but still very low. Just by looking at the scatterplot, the relationship between `sq_human_rating_mean` and `log_hausdorff` is weakly, positively, and linearly correlated. As for `sq_human_rating_mean` and `log_avg_hausdorff`, the relationship seems to be also weakly and positively correlated, but the linearity is arguable. It's also worth noting that, although the pearson correlation between `sq_human_rating_mean` and `log_mahalanobis` is the highest among the four transformed predictors, their scatterplot also shows the most non-linear trend among the four. And lastly, the scatter plot between `sq_human_rating_mean` and `log_euclidean` displays no clear relationship.
+
+
+
+### Modeling
+
+We will first produce a simple linear model for predicting `sq_human_rating_mean` from `log_hausdoff` because the scatterplot among them shows the most linear pattern. 
+
+```{r}
+lm_log_hausdorff <- lm(sq_human_rating_mean ~ log_hausdorff, dist_data_transformed)
+  summary(lm_log_hausdorff)
+  plot(lm_log_hausdorff, which = 1)
+  plot(lm_log_hausdorff, which = 2)
+```
+The p-value for the predictor, `log_hausdorff` is significant, meaning that `log_hausdorff` is significant predictor for `sq_human_rating_mean`. However, the r-squared value is very low, only 9.79% of the variance in `sq_human_rating_mean` can be explained by the variance in `log_hausdorff`. Ine the residual plot, we can see that the residuals are scattered randomly, centered about 0, and the spread of the residuals on any given value of `log_hausdorff` seems to be constant. There are a few outliers (rows 41, 86, and 123) in both the residual plot and the qq plot. However, the residuals sort of resembles an s-curve on the qq-plot, therefore the Normality assumption may be violated and we might need to consider some other transformations.
+
+Let's also produce a simple linear model with `log_mahalanobis` as the predictor since the correlation coefficient is the highest among the four predictors.
+
+```{r}
+lm_log_mahalanobis <- lm(sq_human_rating_mean ~ log_mahalanobis, dist_data_transformed)
+  summary(lm_log_mahalanobis)
+  plot(lm_log_mahalanobis, which = 1)
+  plot(lm_log_mahalanobis, which = 2)
+```
+The p-value for `log_mahalanobis` is also significant. The r-squared value is better (13.42% versus 9.79%) but it's still very low. The residual plot is not very good, there seems to be a negative trend instead of scatterely randomly about 0. There are some outliers in this model (rows 15, 50, and 236) as well for both the residual plot and the qq-plot. The qq-plot also resembles an s-curve like in the previous model and the same considerations should be made. 
+
+
+### Discussion
+
+For our analysis, the process of choosing a reasonable model to predict human ratings on the similarity between two drawings based on various measures of distance between the pair of drawings is far from perfect. Though we reached two significant models, their predictive power is not very good as indicated by the low r-squared values, and multiple assumptions of simple linear regression were violated. 
+
+We could attempt to build a multiple linear regression, but since the various metrics we used are derived from the same set of points, it is very likely that the multicolinearity assupmtion will be violated. Other measures such as taking a "stronger" tranformation of the variables or taking the strokes into account when calculating the distances should be considered. Further research could also benefit from collecting more data on human ratings.
+
+
+
+
