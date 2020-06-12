@@ -1,14 +1,9 @@
 ---
 title: "Calculating Various Distances Between the Pairs of Drawings"
 author: "Bin Zheng"
-date: "2020/6/08"
+date: "`r Sys.Date()`"
 output: html_document
 ---
-
-To do:  
-- Figure out how to use here  
-- Find the Mahalanobis distance between two curves  
-- Calculate the distances for the first strokes (1-3 for now)
 
 ```{r}
 library(tidyverse)
@@ -27,7 +22,22 @@ data <- readr::read_csv("https://raw.githubusercontent.com/mllewis/conceptQD/mas
 
 ```{r}
 #Adding new colomns in the dataset for the distances
-data <- dplyr::mutate(data, hausdorff = 0, avg_hausdorff = 0, mahalanobis = 0)
+data <- dplyr::mutate(data, hausdorff = 0, avg_hausdorff = 0, mahalanobis = 0, euclidean = 0)
+```
+
+```{r}
+euclidean_dist <- function (x1, y1, x2, y2)
+{
+  e_dist <- 0
+  for (i in 1:(length(x1)))
+  {
+    for (j in 1:(length(x2)))
+    {
+      e_dist <- e_dist + sqrt((x1[i] - x2[j])^2 + (y1[i] - y2[j])^2)
+    }
+  }
+  return (e_dist / (length(x1) * length(x2)))
+}
 ```
 
 ```{r}
@@ -48,6 +58,7 @@ for(i in 1:200)
 
   data$hausdorff[i] <- hausdorff_dist(drawing1, drawing2)
   data$mahalanobis[i] <- mean(mahalanobis.dist(drawing1, drawing2))
+  data$euclidean[i] <- euclidean_dist(drawing1[,1], drawing1[,2], drawing2[,1], drawing2[,2])
   
   drawing1 <- matrix(c(tidied1$x, tidied1$y), 2, length(tidied1$x), byrow = TRUE)
   drawing2 <- matrix(c(tidied2$x, tidied2$y), 2, length(tidied2$x), byrow = TRUE)
@@ -74,6 +85,7 @@ for(i in 1:200)
 
   data$hausdorff[i+200] <- hausdorff_dist(drawing1, drawing2)
   data$mahalanobis[i+200] <- mean(mahalanobis.dist(drawing1, drawing2))
+  data$euclidean[i+200] <- euclidean_dist(drawing1[,1], drawing1[,2], drawing2[,1], drawing2[,2])
   
   drawing1 <- matrix(c(tidied1$x, tidied1$y), 2, length(tidied1$x), byrow = TRUE)
   drawing2 <- matrix(c(tidied2$x, tidied2$y), 2, length(tidied2$x), byrow = TRUE)
