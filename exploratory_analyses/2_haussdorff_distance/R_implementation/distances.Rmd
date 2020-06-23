@@ -13,16 +13,21 @@ library(here)
 library(ecr)
 library(pracma)
 library(StatMatch)
-
+library(SpatialPack)
+```
+```{r}
 #Reading all the necessary data
 bread <- qd_read("bread")
 tree <- qd_read("tree")
-data <- readr::read_csv("https://raw.githubusercontent.com/mllewis/conceptQD/master/data/processed/human_data/conceptviz_1_by_item_data.csv")
+
+here()
+dist_data_path <- here("data/processed/human_data/conceptviz_1_by_item_data.csv")
+data <- read_csv(dist_data_path)
 ```
 
 ```{r}
 #Adding new colomns in the dataset for the distances
-data <- dplyr::mutate(data, hausdorff = 0, avg_hausdorff = 0, mahalanobis = 0, euclidean = 0)
+data <- dplyr::mutate(data, hausdorff = 0, avg_hausdorff = 0, mahalanobis = 0, euclidean = 0, hausdorff_three = 0, avg_hausdorff_three = 0, mahalanobis_three = 0, euclidean_three = 0, ss_index_pt = 0)
 ```
 
 ```{r}
@@ -36,7 +41,47 @@ euclidean_dist <- function (x1, y1, x2, y2)
       e_dist <- e_dist + sqrt((x1[i] - x2[j])^2 + (y1[i] - y2[j])^2)
     }
   }
-  return (e_dist / (length(x1) * length(x2)))
+  return (e_dist / ((length(x1) * length(x2))))
+}
+```
+
+```{r}
+qd_hist <- function(tidied)
+{
+  len <- length(tidied$x)
+  pts <- tidied %>%
+    dplyr::select(x, y)
+  
+  if (len <= 20) {
+    dist_data <- vector(mode = "list", choose(len, 2))
+  } else {
+    dist_data <- vector(mode = "list", 200)
+  }
+  
+  for (i in 1:length(dist_data)) {
+    dist_data[i] <- dist(sample_n(pts, 2))
+  }
+  
+  return (as.numeric(dist_data))
+}
+```
+
+```{r}
+qd_ssim <- function(tidied1, tidied2)
+{
+  m1 <- matrix(1L, 256, 256)
+  for(i in 1:length(tidied1$x))
+  {
+    m1[256 - tidied1$y[i], 1 + tidied1$x[i]] <- 0
+  }
+  
+  m2 <- matrix(1L, 256, 256)
+  for(i in 1:length(tidied2$x))
+  {
+    m2[256 - tidied2$y[i], 1 + tidied2$x[i]] <- 0
+  }
+  
+  return(SSIM(m1, m2)$SSIM)
 }
 ```
 
@@ -59,11 +104,28 @@ for(i in 1:200)
   data$hausdorff[i] <- hausdorff_dist(drawing1, drawing2)
   data$mahalanobis[i] <- mean(mahalanobis.dist(drawing1, drawing2))
   data$euclidean[i] <- euclidean_dist(drawing1[,1], drawing1[,2], drawing2[,1], drawing2[,2])
+  data$ss_index_pt[i] <- qd_ssim(tidied1, tidied2)
   
   drawing1 <- matrix(c(tidied1$x, tidied1$y), 2, length(tidied1$x), byrow = TRUE)
   drawing2 <- matrix(c(tidied2$x, tidied2$y), 2, length(tidied2$x), byrow = TRUE)
   
   data$avg_hausdorff[i] <- computeAverageHausdorffDistance(drawing1, drawing2)
+  
+  #First three strokes
+  tidied1 <- filter(tidied1, stroke == "1" | stroke == "2" | stroke == "3")
+  tidied2 <- filter(tidied2, stroke == "1" | stroke == "2" | stroke == "3")
+  
+  drawing1 <- matrix(c(tidied1$x, tidied1$y), length(tidied1$x), 2)
+  drawing2 <- matrix(c(tidied2$x, tidied2$y), length(tidied2$x), 2)
+
+  data$hausdorff_three[i] <- hausdorff_dist(drawing1, drawing2)
+  data$mahalanobis_three[i] <- mean(mahalanobis.dist(drawing1, drawing2))
+  data$euclidean_three[i] <- euclidean_dist(drawing1[,1], drawing1[,2], drawing2[,1], drawing2[,2])
+  
+  drawing1 <- matrix(c(tidied1$x, tidied1$y), 2, length(tidied1$x), byrow = TRUE)
+  drawing2 <- matrix(c(tidied2$x, tidied2$y), 2, length(tidied2$x), byrow = TRUE)
+  
+  data$avg_hausdorff_three[i] <- computeAverageHausdorffDistance(drawing1, drawing2)
 }
 ```
 
@@ -79,18 +141,35 @@ for(i in 1:200)
   
   tidied1 <- qd_tidy(tree, row1)
   tidied2 <- qd_tidy(tree, row2)
-  
+
   drawing1 <- matrix(c(tidied1$x, tidied1$y), length(tidied1$x), 2)
   drawing2 <- matrix(c(tidied2$x, tidied2$y), length(tidied2$x), 2)
 
   data$hausdorff[i+200] <- hausdorff_dist(drawing1, drawing2)
   data$mahalanobis[i+200] <- mean(mahalanobis.dist(drawing1, drawing2))
   data$euclidean[i+200] <- euclidean_dist(drawing1[,1], drawing1[,2], drawing2[,1], drawing2[,2])
+  data$ss_index_pt[i+200] <- qd_ssim(tidied1, tidied2)
   
   drawing1 <- matrix(c(tidied1$x, tidied1$y), 2, length(tidied1$x), byrow = TRUE)
   drawing2 <- matrix(c(tidied2$x, tidied2$y), 2, length(tidied2$x), byrow = TRUE)
   
   data$avg_hausdorff[i+200] <- computeAverageHausdorffDistance(drawing1, drawing2)
+  
+  #First three strokes
+  tidied1 <- filter(tidied1, stroke == "1" | stroke == "2" | stroke == "3")
+  tidied2 <- filter(tidied2, stroke == "1" | stroke == "2" | stroke == "3")
+  
+  drawing1 <- matrix(c(tidied1$x, tidied1$y), length(tidied1$x), 2)
+  drawing2 <- matrix(c(tidied2$x, tidied2$y), length(tidied2$x), 2)
+
+  data$hausdorff_three[i+200] <- hausdorff_dist(drawing1, drawing2)
+  data$mahalanobis_three[i+200] <- mean(mahalanobis.dist(drawing1, drawing2))
+  data$euclidean_three[i+200] <- euclidean_dist(drawing1[,1], drawing1[,2], drawing2[,1], drawing2[,2])
+  
+  drawing1 <- matrix(c(tidied1$x, tidied1$y), 2, length(tidied1$x), byrow = TRUE)
+  drawing2 <- matrix(c(tidied2$x, tidied2$y), 2, length(tidied2$x), byrow = TRUE)
+  
+  data$avg_hausdorff_three[i+200] <- computeAverageHausdorffDistance(drawing1, drawing2)
 }
 ```
 
@@ -98,3 +177,5 @@ for(i in 1:200)
 #Getting the csv file
 write.csv(data,"C:\\Users\\binz7\\Desktop\\conceptviz_1_by_item_data_with_various_metrics_r.csv")
 ```
+
+
