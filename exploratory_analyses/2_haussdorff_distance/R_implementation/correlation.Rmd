@@ -1,0 +1,130 @@
+---
+title: "Correlations"
+author: "Bin Zheng"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    theme: cosmo
+    toc_float: yes
+    number_sections: no
+    code_folding: hide
+    toc: yes
+---
+
+
+```{r, include = FALSE}
+library(tidyverse)
+library(car)
+library(here)
+
+# Reading the data
+dist_data_path <- here("data/processed/human_data/conceptviz_1_by_item_data_with_various_metrics_r.csv")
+dist_data <- read_csv(dist_data_path)
+
+# Transforming the data
+dist_data <- dist_data %>%
+  dplyr::mutate(sq_human_rating_mean = human_rating_mean^2, 
+         log_hausdorff = log(hausdorff), 
+         log_avg_hausdorff = log(avg_hausdorff), 
+         log_mahalanobis = log(mahalanobis), 
+         log_euclidean = log(euclidean), 
+         log_hausdorff_three = log(hausdorff_three), 
+         log_avg_hausdorff_three = log(avg_hausdorff_three), 
+         log_mahalanobis_three = log(mahalanobis_three), 
+         log_euclidean_three = log(euclidean_three))
+
+human_ratings <- tibble(select(dist_data, human_rating_mean), select(dist_data, sq_human_rating_mean))
+```
+
+
+### Correlation between the distances and the human ratings
+```{r}
+dist_data %>%
+  select(hausdorff, avg_hausdorff, mahalanobis, euclidean, ss_index_pt, hausdorff_three, avg_hausdorff_three, mahalanobis_three, euclidean_three) %>%
+  cor(., human_ratings) %>%
+  round(3)
+```
+
+
+### Correlation between the log of the distances and the human ratings
+```{r}
+dist_data %>% 
+  select(log_hausdorff, log_avg_hausdorff, log_mahalanobis, log_euclidean, log_hausdorff_three, log_avg_hausdorff_three, log_mahalanobis_three, log_euclidean_three) %>%
+  cor(., human_ratings) %>%
+  round(3)
+```
+
+### Some multiple linear regression models and vif values
+```{r}
+test1 <- lm(human_rating_mean ~ hausdorff + avg_hausdorff + mahalanobis + euclidean + ss_index_pt, data = dist_data)
+car::vif(test1) %>%
+  round(2)
+```
+
+```{r}
+test1 <- lm(human_rating_mean ~ hausdorff + mahalanobis + euclidean + ss_index_pt, data = dist_data)
+car::vif(test1) %>%
+  round(2)
+summary(test1)
+
+test1 <- lm(human_rating_mean ~ avg_hausdorff + mahalanobis + euclidean + ss_index_pt, data = dist_data)
+car::vif(test1) %>%
+  round(2)
+summary(test1)
+```
+
+```{r}
+test2 <- lm(sq_human_rating_mean ~ log_hausdorff + log_avg_hausdorff + log_mahalanobis + log_euclidean, data = dist_data)
+car::vif(test2) %>%
+  round(2)
+```
+
+```{r}
+test2 <- lm(sq_human_rating_mean ~ log_hausdorff + log_mahalanobis + log_euclidean, data = dist_data)
+car::vif(test2) %>%
+  round(2)
+summary(test2)
+
+test2 <- lm(sq_human_rating_mean ~ log_avg_hausdorff + log_mahalanobis + log_euclidean, data = dist_data)
+car::vif(test2) %>%
+  round(2)
+summary(test2)
+```
+
+
+### Some multiple linear regression models and vif values with the first three strokes
+```{r}
+test3 <- lm(human_rating_mean ~ hausdorff_three + avg_hausdorff_three + mahalanobis_three + euclidean_three, data = dist_data)
+car::vif(test3) %>%
+  round(2)
+```
+
+```{r}
+test3 <- lm(human_rating_mean ~ hausdorff_three + mahalanobis_three + euclidean_three, data = dist_data)
+car::vif(test3) %>%
+  round(2)
+summary(test3)
+
+test3 <- lm(human_rating_mean ~ avg_hausdorff_three + mahalanobis_three + euclidean_three, data = dist_data)
+car::vif(test3) %>%
+  round(2)
+summary(test3)
+```
+
+```{r}
+test4 <- lm(sq_human_rating_mean ~ log_hausdorff_three + log_avg_hausdorff_three + log_mahalanobis_three + log_euclidean_three, data = dist_data)
+car::vif(test4) %>%
+  round(2)
+```
+
+```{r}
+test4 <- lm(sq_human_rating_mean ~ log_hausdorff_three + log_mahalanobis_three + log_euclidean_three, data = dist_data)
+car::vif(test4) %>%
+  round(2)
+summary(test4)
+
+test4 <- lm(sq_human_rating_mean ~ log_avg_hausdorff_three + log_mahalanobis_three + log_euclidean_three, data = dist_data)
+car::vif(test4) %>%
+  round(2)
+summary(test4)
+```
