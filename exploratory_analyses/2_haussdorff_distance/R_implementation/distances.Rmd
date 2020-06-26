@@ -14,11 +14,15 @@ library(ecr)
 library(pracma)
 library(StatMatch)
 library(SpatialPack)
+library(seewave)
+library(HistogramTools)
 ```
 ```{r}
 #Reading all the necessary data
 bread <- qd_read("bread")
 tree <- qd_read("tree")
+bread_bitmap <- qd_read_bitmap("bread")
+tree_bitmap <- qd_read_bitmap("tree")
 
 here()
 dist_data_path <- here("data/processed/human_data/conceptviz_1_by_item_data.csv")
@@ -27,7 +31,7 @@ data <- read_csv(dist_data_path)
 
 ```{r}
 #Adding new colomns in the dataset for the distances
-data <- dplyr::mutate(data, hausdorff = 0, avg_hausdorff = 0, mahalanobis = 0, euclidean = 0, hausdorff_three = 0, avg_hausdorff_three = 0, mahalanobis_three = 0, euclidean_three = 0, ss_index_pt = 0)
+data <- dplyr::mutate(data, hausdorff = 0, avg_hausdorff = 0, mahalanobis = 0, euclidean = 0, hausdorff_three = 0, avg_hausdorff_three = 0, mahalanobis_three = 0, euclidean_three = 0, ss_index_pt = 0, ss_index_bm = 0)
 ```
 
 ```{r}
@@ -52,22 +56,27 @@ qd_hist <- function(tidied)
   pts <- tidied %>%
     dplyr::select(x, y)
   
-  if (len <= 20) {
-    dist_data <- vector(mode = "list", choose(len, 2))
-  } else {
-    dist_data <- vector(mode = "list", 200)
-  }
+  dist_data <- vector(mode = "list", 200)
   
   for (i in 1:length(dist_data)) {
-    dist_data[i] <- dist(sample_n(pts, 2))
+    dist_data[i] <- dist(sample_n(pts, 2), method = "euclidean")
   }
   
   return (as.numeric(dist_data))
 }
+
+qd_intersect <- function(tidied1, tidied2, p)
+{
+  h1 <- qd_hist(tidied1)
+  h2 <- qd_hist(tidied2)
+  h1 <- hist(h1, breaks = 8)
+  h2 <- hist(h2, breaks = 8)
+  return(intersect.dist(h1, h2))
+}
 ```
 
 ```{r}
-qd_ssim <- function(tidied1, tidied2)
+qd_ssim_pt <- function(tidied1, tidied2)
 {
   m1 <- matrix(1L, 256, 256)
   for(i in 1:length(tidied1$x))
@@ -81,6 +90,15 @@ qd_ssim <- function(tidied1, tidied2)
     m2[256 - tidied2$y[i], 1 + tidied2$x[i]] <- 0
   }
   
+  return(SSIM(m1, m2)$SSIM)
+}
+```
+
+```{r}
+qd_ssim_bm <- function(row1, row2, bitmap)
+{
+  m1 <- matrix(bitmap[row1,], nrow = 28, byrow = T)
+  m2 <- matrix(bitmap[row2,], nrow = 28, byrow = T)
   return(SSIM(m1, m2)$SSIM)
 }
 ```
@@ -104,7 +122,10 @@ for(i in 1:200)
   data$hausdorff[i] <- hausdorff_dist(drawing1, drawing2)
   data$mahalanobis[i] <- mean(mahalanobis.dist(drawing1, drawing2))
   data$euclidean[i] <- euclidean_dist(drawing1[,1], drawing1[,2], drawing2[,1], drawing2[,2])
-  data$ss_index_pt[i] <- qd_ssim(tidied1, tidied2)
+  data$ss_index_pt[i] <- qd_ssim_pt(tidied1, tidied2)
+  data$ss_index_bm[i] <- qd_ssim_bm(row1, row2, bread_bitmap)
+  #data$inter[i] <- qd_intersect(tidied1, tidied2)
+
   
   drawing1 <- matrix(c(tidied1$x, tidied1$y), 2, length(tidied1$x), byrow = TRUE)
   drawing2 <- matrix(c(tidied2$x, tidied2$y), 2, length(tidied2$x), byrow = TRUE)
@@ -141,14 +162,15 @@ for(i in 1:200)
   
   tidied1 <- qd_tidy(tree, row1)
   tidied2 <- qd_tidy(tree, row2)
-
+  
   drawing1 <- matrix(c(tidied1$x, tidied1$y), length(tidied1$x), 2)
   drawing2 <- matrix(c(tidied2$x, tidied2$y), length(tidied2$x), 2)
 
   data$hausdorff[i+200] <- hausdorff_dist(drawing1, drawing2)
   data$mahalanobis[i+200] <- mean(mahalanobis.dist(drawing1, drawing2))
   data$euclidean[i+200] <- euclidean_dist(drawing1[,1], drawing1[,2], drawing2[,1], drawing2[,2])
-  data$ss_index_pt[i+200] <- qd_ssim(tidied1, tidied2)
+  data$ss_index_pt[i+200] <- qd_ssim_pt(tidied1, tidied2)
+  data$ss_index_bm[i+200] <- qd_ssim_bm(row1, row2, tree_bitmap)
   
   drawing1 <- matrix(c(tidied1$x, tidied1$y), 2, length(tidied1$x), byrow = TRUE)
   drawing2 <- matrix(c(tidied2$x, tidied2$y), 2, length(tidied2$x), byrow = TRUE)

@@ -18,7 +18,7 @@ library(car)
 library(here)
 
 # Reading the data
-dist_data_path <- here("data/processed/human_data/conceptviz_1_by_item_data_with_various_metrics_r.csv")
+dist_data_path <- here("data/processed/computational_distance_measures/conceptviz_1_by_item_data_with_various_metrics_r.csv")
 dist_data <- read_csv(dist_data_path)
 
 # Transforming the data
@@ -40,8 +40,14 @@ human_ratings <- tibble(select(dist_data, human_rating_mean), select(dist_data, 
 ### Correlation between the distances and the human ratings
 ```{r}
 dist_data %>%
-  select(hausdorff, avg_hausdorff, mahalanobis, euclidean, ss_index_pt, hausdorff_three, avg_hausdorff_three, mahalanobis_three, euclidean_three) %>%
+  select(hausdorff, avg_hausdorff, mahalanobis, euclidean, ss_index_pt, hausdorff_three, avg_hausdorff_three, mahalanobis_three, euclidean_three, ss_index_pt) %>%
   cor(., human_ratings) %>%
+  round(3)
+
+dist_data %>%
+  filter(!is.na(ss_index_bm)) %>%
+  select(ss_index_bm, human_rating_mean) %>%
+  cor() %>%
   round(3)
 ```
 
