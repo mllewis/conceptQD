@@ -1,0 +1,158 @@
+---
+title: "quickdraw"
+author: "abalamur"
+date: "6/4/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, warning = F}
+library(tidyverse)
+library(ggplot2)
+```
+
+```{r, message = F}
+humans.original = read_csv("https://raw.githubusercontent.com/mllewis/conceptQD/master/data/processed/human_data/conceptviz_1_by_item_data.csv")
+
+comp.measures = read_csv("https://raw.githubusercontent.com/mllewis/conceptQD/master/data/processed/computational_distance_measures/Computational_Measures.csv")
+```
+
+#Human rating vs. Hausdorff Distance
+```{r}
+plot(x = comp.measures$`Hausdorff Distance`, 
+     y = humans.original$human_rating_mean)
+```
+
+```{r}
+plot(x = comp.measures$`Euclidean Distance`,
+     y = humans.original$human_rating_mean)
+
+```
+
+```{r}
+ggplot(comp.measures, aes(x = `Hausdorff Distance`, y = humans.original$human_rating_mean)) + 
+  geom_point() +
+  ggtitle("Hausdorff Distance") +
+  geom_smooth(formula = y~  x, method = "lm")
+
+ggplot(comp.measures, aes(x = `Euclidean Distance`, y = humans.original$human_rating_mean)) +
+  geom_point() + 
+  ggtitle("Euclidean Distance") +
+  geom_smooth(formula = y~  x, method = "lm")
+
+ggplot(comp.measures, aes(x = `IMED`, y = humans.original$human_rating_mean)) +
+  geom_point() + 
+  ggtitle("Image Euclidean Distance") +
+  geom_smooth(formula = y~  x, method = "lm")
+
+ggplot(comp.measures, aes(x = `First Three`, y = humans.original$human_rating_mean)) + 
+  geom_point() +
+  ggtitle("First Three Strokes Hausdorff") +
+  geom_smooth(formula = y~  x, method = "lm")
+
+ggplot(comp.measures, aes(x = `Manhattan`, y = humans.original$human_rating_mean)) +
+  geom_point() +
+  ggtitle("Manhattan Distance") +
+  geom_smooth(formula = y~  x, method = "lm")
+
+ggplot(comp.measures, aes(x = `Chessboard`, y = humans.original$human_rating_mean)) +
+  geom_point() +
+  ggtitle("Chessboard Distance") +
+  geom_smooth(formula = y~  x, method = "lm")
+```
+
+```{r}
+cor(x = comp.measures$`Hausdorff Distance`, y = humans.original$human_rating_mean)
+
+cor(x = comp.measures$`Euclidean Distance`, y = humans.original$human_rating_mean)
+
+cor(x = comp.measures$`IMED`, y = humans.original$human_rating_mean)
+
+cor(x = comp.measures$`First Three`, y = humans.original$human_rating_mean)
+
+cor(x = comp.measures$`Manhattan`, y = humans.original$human_rating_mean)
+
+cor(x = comp.measures$`Chessboard`, y = humans.original$human_rating_mean)
+```
+
+```{r}
+
+ggplot(comp.measures, aes(x = log(`Hausdorff Distance`), y = humans.original$human_rating_mean)) + 
+  geom_point() +
+  ggtitle("log(Hausdorff Distance)") +
+  geom_smooth(formula = y ~ x, method = "lm")
+
+ggplot(comp.measures, aes(x = log(`Euclidean Distance`), y = humans.original$human_rating_mean)) +
+  geom_point() +
+  geom_smooth(formula = y~x, method = "lm") +
+  ggtitle("log(Euclidean Distance)")
+
+ggplot(comp.measures, aes(x = log(`IMED`), y = humans.original$human_rating_mean)) +
+  geom_point() +
+  geom_smooth(formula = y~x, method = "lm") +
+  ggtitle("log(IMED)")
+
+ggplot(comp.measures, aes(x = log(`First Three`), y = humans.original$human_rating_mean)) +
+  geom_point() +
+  geom_smooth(formula = y~x, method = "lm") +
+  ggtitle("log(First Three Strokes)")
+
+ggplot(comp.measures, aes(x = log(`Manhattan`), y = humans.original$human_rating_mean)) +
+  geom_point() +
+  geom_smooth(formula = y~x, method = "lm") +
+  ggtitle("log(Manhattan)")
+```
+
+```{r}
+
+cor(x = log(comp.measures$`Hausdorff Distance`), y = humans.original$human_rating_mean)
+
+cor(x = log(comp.measures$`Euclidean Distance`), y = humans.original$human_rating_mean)
+
+imed = log(comp.measures$IMED)
+#which(is.infinite(imed))
+
+#imed[205]
+#humans.original$human_rating_mean[205]
+data = humans.original$human_rating_mean
+
+
+is.na(imed) <- sapply(imed, is.infinite)
+imed <-imed[!is.na(imed)]
+cor(x = imed, y = data[-(205)]) #excludes inf and corresponding inf value for y
+
+
+cor(x = log(comp.measures$`First Three`),y = humans.original$human_rating_mean)
+
+cor(x = log(comp.measures$`Manhattan`),y = humans.original$human_rating_mean)
+
+cor(x = log(comp.measures$`Chessboard`),y = humans.original$human_rating_mean)
+
+
+```
+
+```{r}
+summary(lm(humans.original$human_rating_mean ~ log(`Hausdorff Distance`), comp.measures))
+
+linear.log.haus = lm(humans.original$human_rating_mean ~ log(`Hausdorff Distance`), comp.measures)
+plot(linear.log.haus, which = 1, pch = 19)
+
+linear.haus = lm(humans.original$human_rating_mean ~ `Hausdorff Distance`, comp.measures)
+plot(linear.haus, which = 1, pch = 19)
+
+summary(lm(humans.original$human_rating_mean ~ log(`Euclidean Distance`), comp.measures))
+
+linear.euc = lm(humans.original$human_rating_mean ~ log(`Euclidean Distance`), comp.measures)
+plot(linear.euc, which = 1, pch = 19)
+
+linear.imed = lm(data[-(205)] ~ imed, comp.measures)
+plot(linear.imed, which = 1, pch = 19)
+
+linear.man = lm(humans.original$human_rating_mean ~ log(`Manhattan`), comp.measures)
+plot(linear.man, which = 1, pch = 19)
+
+
+```
