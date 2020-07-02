@@ -1,0 +1,131 @@
+---
+title: Comparision of all computational measures
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc_float: no
+    number_sections: no
+    code_folding: hide
+    toc: yes
+---
+
+```{r, include = F}
+library(tidyverse)
+library(here)
+library(janitor)
+
+make_corr_plot <- function(current_df){
+  
+  ALPHA <- .05
+  cols <- rev(colorRampPalette(c("red", "white", "blue"))(100))
+  
+  clean_df <- current_df %>%
+    select_if(is.numeric) 
+  
+  corr_mat <- cor(clean_df, 
+                  use = "pairwise.complete.obs")
+  
+  p.mat <- corrplot::cor.mtest(clean_df, 
+                               conf.level = (1-ALPHA),  
+                               use = "pairwise.complete.obs")$p
+  
+  corrplot::corrplot(corr_mat, method = "color",  col = cols,
+                     order = "original", number.cex = .7,
+                     addCoef.col = "black", 
+                     p.mat = p.mat, sig.level = ALPHA, insig = "blank", 
+                     tl.col = "black", tl.srt = 90,
+                     diag = FALSE)
+  
+}
+```
+
+## Load data
+```{r, echo = F, comment=F, warning = F, message = F}
+MEASURES1 <- here("data/processed/computational_distance_measures/Computational_Measures.csv")
+MEASURES2 <- here("data/processed/computational_distance_measures/conceptviz_1_by_item_data_with_various_metrics_r_bm.csv")
+MEASURES3 <- here("data/processed/computational_distance_measures/conceptviz_1_by_item_data_with_various_metrics_r_tst.csv")
+MEASURES4 <- here("data/processed/computational_distance_measures/conceptviz_1_by_item_data_with_various_metrics_r.csv")
+
+df1 <- read_csv(MEASURES1) %>%
+  clean_names() %>%
+  select(-x1, -word) %>%
+  rename(drawing_key_id_1 = key_id, 
+         drawing_key_id_2 = key_id_2)
+
+df2 <- read_csv(MEASURES2) %>%
+  clean_names() %>%
+  select(-n_participants, -ci_lower_human, -ci_upper_human, -x1)
+
+
+df3 <- read_csv(MEASURES3) %>%
+  clean_names() %>%
+  select(pair_id, hausdorff, euclidean)
+
+df4 <- read_csv(MEASURES4) %>%
+  clean_names() %>%
+  select(pair_id, hausdorff:ss_index_bm)
+
+tidy_df <- df1 %>%
+  left_join(df2, by = c("drawing_key_id_1", "drawing_key_id_2")) %>%
+  left_join(df3, by = "pair_id") %>%
+  left_join(df4, by = "pair_id") %>%
+  select(-contains("drawing")) %>%
+  select(pair_id, category, human_rating_mean, everything())
+
+```
+
+## Distribution of all variables:
+```{r, fig.height = 10}
+tidy_df %>%
+  pivot_longer(cols = 3:32) %>%
+  ggplot(aes(x = value)) +
+  geom_histogram() +
+  facet_wrap(~name, scale = "free_x") +
+  theme_classic()
+
+```
+
+
+## Distribution of all variables after taking log:
+```{r, fig.height = 10}
+log_tidy_df <- tidy_df %>%
+  mutate_at(vars(euclidean_distance, imed, avg_hausdorff.x, avg_hausdorff.y, avg_hausdorff_f3, avg_hausdorff_l3, mahalanobis.y), ~log(. + .001)) %>%
+  mutate(sq_human_rating_mean = human_rating_mean ^2)
+
+log_tidy_df %>%
+  pivot_longer(cols = 3:33) %>%
+  ggplot(aes(x = value)) +
+  geom_histogram() +
+  facet_wrap(~name, scale = "free_x") +
+  theme_classic()
+```
+
+
+## Pairwise correlation: 
+```{r, fig.height = 14, fig.width = 14}
+log_tidy_df %>%
+  select(3:33) %>%
+  mutate_if(is.numeric, list(~na_if(., -Inf))) %>%
+  make_corr_plot()
+```
+
+```{r}
+log_tidy_df %>%
+  select(human_rating_mean, imed, manhattan, chessboard, avg_hausdorff.x, 
+         ss_index_pt.x, ss_index_bm.x, euclidean.y, euclidean, mahalanobis.y, avg_hausdorff_l3) %>%
+  make_corr_plot()
+```
+
+
+## Additive models
+```{r}
+
+lm(human_rating_mean ~ mahalanobis.y, data = log_tidy_df) %>%
+  summary()
+
+lm(human_rating_mean ~ avg_hausdorff.x + mahalanobis.y, data = log_tidy_df) %>%
+  summary()
+
+lm(human_rating_mean ~ mahalanobis.y + avg_hausdorff.x+  euclidean, data = log_tidy_df) %>%
+  summary()
+```
