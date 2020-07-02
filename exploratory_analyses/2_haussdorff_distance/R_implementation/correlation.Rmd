@@ -21,6 +21,9 @@ library(here)
 dist_data_path <- here("data/processed/computational_distance_measures/conceptviz_1_by_item_data_with_various_metrics_r.csv")
 dist_data <- read_csv(dist_data_path)
 
+dist_data_path_bm <- here("data/processed/computational_distance_measures/conceptviz_1_by_item_data_with_various_metrics_r_bm.csv")
+dist_data_bm <- read_csv(dist_data_path_bm)
+
 # Transforming the data
 dist_data <- dist_data %>%
   dplyr::mutate(sq_human_rating_mean = human_rating_mean^2, 
@@ -28,10 +31,14 @@ dist_data <- dist_data %>%
          log_avg_hausdorff = log(avg_hausdorff), 
          log_mahalanobis = log(mahalanobis), 
          log_euclidean = log(euclidean), 
-         log_hausdorff_three = log(hausdorff_three), 
-         log_avg_hausdorff_three = log(avg_hausdorff_three), 
-         log_mahalanobis_three = log(mahalanobis_three), 
-         log_euclidean_three = log(euclidean_three))
+         log_hausdorff_f3 = log(hausdorff_f3), 
+         log_avg_hausdorff_f3 = log(avg_hausdorff_f3), 
+         log_mahalanobis_f3 = log(mahalanobis_f3), 
+         log_euclidean_f3 = log(euclidean_f3), 
+         log_hausdorff_l3 = log(hausdorff_l3), 
+         log_avg_hausdorff_l3 = log(avg_hausdorff_l3), 
+         log_mahalanobis_l3 = log(mahalanobis_l3), 
+         log_euclidean_l3 = log(euclidean_l3))
 
 human_ratings <- tibble(select(dist_data, human_rating_mean), select(dist_data, sq_human_rating_mean))
 ```
@@ -40,7 +47,12 @@ human_ratings <- tibble(select(dist_data, human_rating_mean), select(dist_data, 
 ### Correlation between the distances and the human ratings
 ```{r}
 dist_data %>%
-  select(hausdorff, avg_hausdorff, mahalanobis, euclidean, ss_index_pt, hausdorff_three, avg_hausdorff_three, mahalanobis_three, euclidean_three, ss_index_pt) %>%
+  select(hausdorff, avg_hausdorff, mahalanobis, euclidean, hausdorff_f3, avg_hausdorff_f3, mahalanobis_f3, euclidean_f3, hausdorff_l3, avg_hausdorff_l3, mahalanobis_l3, euclidean_l3, ss_index_pt) %>%
+  cor(., human_ratings) %>%
+  round(3)
+
+dist_data %>%
+  select(log_hausdorff, log_avg_hausdorff, log_mahalanobis, log_euclidean, log_hausdorff_f3, log_avg_hausdorff_f3, log_mahalanobis_f3, log_euclidean_f3, log_hausdorff_l3, log_avg_hausdorff_l3, log_mahalanobis_l3, log_euclidean_l3) %>%
   cor(., human_ratings) %>%
   round(3)
 
@@ -49,13 +61,19 @@ dist_data %>%
   select(ss_index_bm, human_rating_mean) %>%
   cor() %>%
   round(3)
+
+dist_data_bm %>%
+  select(hausdorff, avg_hausdorff, mahalanobis, euclidean, ss_index_pt) %>%
+  cor(., human_ratings) %>%
+  .^2 %>%
+  round(3)
 ```
 
 
 ### Correlation between the log of the distances and the human ratings
 ```{r}
 dist_data %>% 
-  select(log_hausdorff, log_avg_hausdorff, log_mahalanobis, log_euclidean, log_hausdorff_three, log_avg_hausdorff_three, log_mahalanobis_three, log_euclidean_three) %>%
+  select(log_hausdorff, log_avg_hausdorff, log_mahalanobis, log_euclidean, log_hausdorff_f3, log_avg_hausdorff_f3, log_mahalanobis_f3, log_euclidean_f3) %>%
   cor(., human_ratings) %>%
   round(3)
 ```
@@ -98,38 +116,38 @@ summary(test2)
 ```
 
 
-### Some multiple linear regression models and vif values with the first three strokes
+### Some multiple linear regression models and vif values with the first f3 strokes
 ```{r}
-test3 <- lm(human_rating_mean ~ hausdorff_three + avg_hausdorff_three + mahalanobis_three + euclidean_three, data = dist_data)
+test3 <- lm(human_rating_mean ~ hausdorff_f3 + avg_hausdorff_f3 + mahalanobis_f3 + euclidean_f3, data = dist_data)
 car::vif(test3) %>%
   round(2)
 ```
 
 ```{r}
-test3 <- lm(human_rating_mean ~ hausdorff_three + mahalanobis_three + euclidean_three, data = dist_data)
+test3 <- lm(human_rating_mean ~ hausdorff_f3 + mahalanobis_f3 + euclidean_f3, data = dist_data)
 car::vif(test3) %>%
   round(2)
 summary(test3)
 
-test3 <- lm(human_rating_mean ~ avg_hausdorff_three + mahalanobis_three + euclidean_three, data = dist_data)
+test3 <- lm(human_rating_mean ~ avg_hausdorff_f3 + mahalanobis_f3 + euclidean_f3, data = dist_data)
 car::vif(test3) %>%
   round(2)
 summary(test3)
 ```
 
 ```{r}
-test4 <- lm(sq_human_rating_mean ~ log_hausdorff_three + log_avg_hausdorff_three + log_mahalanobis_three + log_euclidean_three, data = dist_data)
+test4 <- lm(sq_human_rating_mean ~ log_hausdorff_f3 + log_avg_hausdorff_f3 + log_mahalanobis_f3 + log_euclidean_f3, data = dist_data)
 car::vif(test4) %>%
   round(2)
 ```
 
 ```{r}
-test4 <- lm(sq_human_rating_mean ~ log_hausdorff_three + log_mahalanobis_three + log_euclidean_three, data = dist_data)
+test4 <- lm(sq_human_rating_mean ~ log_hausdorff_f3 + log_mahalanobis_f3 + log_euclidean_f3, data = dist_data)
 car::vif(test4) %>%
   round(2)
 summary(test4)
 
-test4 <- lm(sq_human_rating_mean ~ log_avg_hausdorff_three + log_mahalanobis_three + log_euclidean_three, data = dist_data)
+test4 <- lm(sq_human_rating_mean ~ log_avg_hausdorff_f3 + log_mahalanobis_f3 + log_euclidean_f3, data = dist_data)
 car::vif(test4) %>%
   round(2)
 summary(test4)

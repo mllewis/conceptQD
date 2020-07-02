@@ -17,8 +17,10 @@ library(SpatialPack)
 library(seewave)
 library(HistogramTools)
 ```
+
 ```{r}
-#Reading all the necessary data
+# Reading all the necessary data
+
 bread <- qd_read("bread")
 tree <- qd_read("tree")
 bread_bitmap <- qd_read_bitmap("bread")
@@ -30,11 +32,18 @@ data <- read_csv(dist_data_path)
 ```
 
 ```{r}
-#Adding new colomns in the dataset for the distances
-data <- dplyr::mutate(data, hausdorff = 0, avg_hausdorff = 0, mahalanobis = 0, euclidean = 0, hausdorff_three = 0, avg_hausdorff_three = 0, mahalanobis_three = 0, euclidean_three = 0, ss_index_pt = 0, ss_index_bm = 0)
+# Adding new colomns
+
+data_bitmap <- dplyr::mutate(data, hausdorff = 0, avg_hausdorff = 0, mahalanobis = 0, euclidean = 0, ss_index_pt = 0, ss_index_bm = 0)
+
+data_test <- dplyr::mutate(data, hausdorff = 0, euclidean = 0)
+
+data <- dplyr::mutate(data, hausdorff = 0, avg_hausdorff = 0, mahalanobis = 0, euclidean = 0, hausdorff_f3 = 0, avg_hausdorff_f3 = 0, mahalanobis_f3 = 0, euclidean_f3 = 0, hausdorff_l3 = 0, avg_hausdorff_l3 = 0, mahalanobis_l3 = 0, euclidean_l3 = 0, ss_index_pt = 0, ss_index_bm = 0)
 ```
 
 ```{r}
+# A bunch of functions
+
 euclidean_dist <- function (x1, y1, x2, y2)
 {
   e_dist <- 0
@@ -47,9 +56,7 @@ euclidean_dist <- function (x1, y1, x2, y2)
   }
   return (e_dist / ((length(x1) * length(x2))))
 }
-```
 
-```{r}
 qd_hist <- function(tidied)
 {
   len <- length(tidied$x)
@@ -73,9 +80,7 @@ qd_intersect <- function(tidied1, tidied2, p)
   h2 <- hist(h2, breaks = 8)
   return(intersect.dist(h1, h2))
 }
-```
 
-```{r}
 qd_ssim_pt <- function(tidied1, tidied2)
 {
   m1 <- matrix(1L, 256, 256)
@@ -92,9 +97,7 @@ qd_ssim_pt <- function(tidied1, tidied2)
   
   return(SSIM(m1, m2)$SSIM)
 }
-```
 
-```{r}
 qd_ssim_bm <- function(row1, row2, bitmap)
 {
   m1 <- matrix(bitmap[row1,], nrow = 28, byrow = T)
@@ -104,7 +107,8 @@ qd_ssim_bm <- function(row1, row2, bitmap)
 ```
 
 ```{r}
-#Calculates the distances for the 200 pairs on "bread" and storing it in the dataset
+# Calculates the distances for the 200 pairs on "bread" and storing it in data
+
 for(i in 1:200)
 {
   id1 = toString(data$drawing_key_id_1[i])
@@ -124,34 +128,70 @@ for(i in 1:200)
   data$euclidean[i] <- euclidean_dist(drawing1[,1], drawing1[,2], drawing2[,1], drawing2[,2])
   data$ss_index_pt[i] <- qd_ssim_pt(tidied1, tidied2)
   data$ss_index_bm[i] <- qd_ssim_bm(row1, row2, bread_bitmap)
-  #data$inter[i] <- qd_intersect(tidied1, tidied2)
 
-  
   drawing1 <- matrix(c(tidied1$x, tidied1$y), 2, length(tidied1$x), byrow = TRUE)
   drawing2 <- matrix(c(tidied2$x, tidied2$y), 2, length(tidied2$x), byrow = TRUE)
   
   data$avg_hausdorff[i] <- computeAverageHausdorffDistance(drawing1, drawing2)
   
-  #First three strokes
-  tidied1 <- filter(tidied1, stroke == "1" | stroke == "2" | stroke == "3")
-  tidied2 <- filter(tidied2, stroke == "1" | stroke == "2" | stroke == "3")
+  # First three strokes
+  
+  tidied1_f3 <- filter(tidied1, stroke == "1" | stroke == "2" | stroke == "3")
+  tidied2_f3 <- filter(tidied2, stroke == "1" | stroke == "2" | stroke == "3")
+  
+  drawing1 <- matrix(c(tidied1_f3$x, tidied1_f3$y), length(tidied1_f3$x), 2)
+  drawing2 <- matrix(c(tidied2_f3$x, tidied2_f3$y), length(tidied2_f3$x), 2)
+
+  data$hausdorff_f3[i] <- hausdorff_dist(drawing1, drawing2)
+  data$mahalanobis_f3[i] <- mean(mahalanobis.dist(drawing1, drawing2))
+  data$euclidean_f3[i] <- euclidean_dist(drawing1[,1], drawing1[,2], drawing2[,1], drawing2[,2])
+  
+  drawing1 <- matrix(c(tidied1_f3$x, tidied1_f3$y), 2, length(tidied1_f3$x), byrow = TRUE)
+  drawing2 <- matrix(c(tidied2_f3$x, tidied2_f3$y), 2, length(tidied2_f3$x), byrow = TRUE)
+  
+  data$avg_hausdorff_f3[i] <- computeAverageHausdorffDistance(drawing1, drawing2)
+  
+  # Longest three strokes
+  
+  if (n_distinct(tidied1$stroke) > 3)
+  {
+    tidied1 %>%
+      group_by(stroke) %>%
+      summarise(length = n()) %>%
+      arrange(desc(length)) %>%
+      slice(1:3) %>%
+      .$stroke -> longest
+    tidied1_l3 <- filter(tidied1, stroke == longest[1] | stroke == longest[2] | stroke == longest[3])
+  }
+  
+  if (n_distinct(tidied2$stroke) > 3)
+  {
+    tidied2 %>%
+      group_by(stroke) %>%
+      summarise(length = n()) %>%
+      arrange(desc(length)) %>%
+      slice(1:3) %>%
+      .$stroke -> longest
+    tidied2 <- filter(tidied2, stroke == longest[1] | stroke == longest[2] | stroke == longest[3])
+  }
   
   drawing1 <- matrix(c(tidied1$x, tidied1$y), length(tidied1$x), 2)
   drawing2 <- matrix(c(tidied2$x, tidied2$y), length(tidied2$x), 2)
 
-  data$hausdorff_three[i] <- hausdorff_dist(drawing1, drawing2)
-  data$mahalanobis_three[i] <- mean(mahalanobis.dist(drawing1, drawing2))
-  data$euclidean_three[i] <- euclidean_dist(drawing1[,1], drawing1[,2], drawing2[,1], drawing2[,2])
+  data$hausdorff_l3[i] <- hausdorff_dist(drawing1, drawing2)
+  data$mahalanobis_l3[i] <- mean(mahalanobis.dist(drawing1, drawing2))
+  data$euclidean_l3[i] <- euclidean_dist(drawing1[,1], drawing1[,2], drawing2[,1], drawing2[,2])
   
   drawing1 <- matrix(c(tidied1$x, tidied1$y), 2, length(tidied1$x), byrow = TRUE)
   drawing2 <- matrix(c(tidied2$x, tidied2$y), 2, length(tidied2$x), byrow = TRUE)
   
-  data$avg_hausdorff_three[i] <- computeAverageHausdorffDistance(drawing1, drawing2)
+  data$avg_hausdorff_l3[i] <- computeAverageHausdorffDistance(drawing1, drawing2)
 }
 ```
 
 ```{r}
-#Calculates the distances for the 200 pairs on "tree" and storing it in the dataset
+# Calculates the distances for the 200 pairs on "tree" and storing it in data
+
 for(i in 1:200)
 {
   id1 = toString(data$drawing_key_id_1[i+200])
@@ -177,27 +217,170 @@ for(i in 1:200)
   
   data$avg_hausdorff[i+200] <- computeAverageHausdorffDistance(drawing1, drawing2)
   
-  #First three strokes
+  # First three strokes
+  
   tidied1 <- filter(tidied1, stroke == "1" | stroke == "2" | stroke == "3")
   tidied2 <- filter(tidied2, stroke == "1" | stroke == "2" | stroke == "3")
   
   drawing1 <- matrix(c(tidied1$x, tidied1$y), length(tidied1$x), 2)
   drawing2 <- matrix(c(tidied2$x, tidied2$y), length(tidied2$x), 2)
 
-  data$hausdorff_three[i+200] <- hausdorff_dist(drawing1, drawing2)
-  data$mahalanobis_three[i+200] <- mean(mahalanobis.dist(drawing1, drawing2))
-  data$euclidean_three[i+200] <- euclidean_dist(drawing1[,1], drawing1[,2], drawing2[,1], drawing2[,2])
+  data$hausdorff_f3[i+200] <- hausdorff_dist(drawing1, drawing2)
+  data$mahalanobis_f3[i+200] <- mean(mahalanobis.dist(drawing1, drawing2))
+  data$euclidean_f3[i+200] <- euclidean_dist(drawing1[,1], drawing1[,2], drawing2[,1], drawing2[,2])
   
   drawing1 <- matrix(c(tidied1$x, tidied1$y), 2, length(tidied1$x), byrow = TRUE)
   drawing2 <- matrix(c(tidied2$x, tidied2$y), 2, length(tidied2$x), byrow = TRUE)
   
-  data$avg_hausdorff_three[i+200] <- computeAverageHausdorffDistance(drawing1, drawing2)
+  data$avg_hausdorff_f3[i+200] <- computeAverageHausdorffDistance(drawing1, drawing2)
+  
+  # Longest three strokes
+  
+  if (n_distinct(tidied1$stroke) > 3)
+  {
+    tidied1 %>%
+      group_by(stroke) %>%
+      summarise(length = n()) %>%
+      arrange(desc(length)) %>%
+      slice(1:3) %>%
+      .$stroke -> longest
+    tidied1 <- filter(tidied1, stroke == longest[1] | stroke == longest[2] | stroke == longest[3])
+  }
+  
+  if (n_distinct(tidied2$stroke) > 3)
+  {
+    tidied2 %>%
+      group_by(stroke) %>%
+      summarise(length = n()) %>%
+      arrange(desc(length)) %>%
+      slice(1:3) %>%
+      .$stroke -> longest
+    tidied2 <- filter(tidied2, stroke == longest[1] | stroke == longest[2] | stroke == longest[3])
+  }
+  
+  drawing1 <- matrix(c(tidied1$x, tidied1$y), length(tidied1$x), 2)
+  drawing2 <- matrix(c(tidied2$x, tidied2$y), length(tidied2$x), 2)
+
+  data$hausdorff_l3[i] <- hausdorff_dist(drawing1, drawing2)
+  data$mahalanobis_l3[i] <- mean(mahalanobis.dist(drawing1, drawing2))
+  data$euclidean_l3[i] <- euclidean_dist(drawing1[,1], drawing1[,2], drawing2[,1], drawing2[,2])
+  
+  drawing1 <- matrix(c(tidied1$x, tidied1$y), 2, length(tidied1$x), byrow = TRUE)
+  drawing2 <- matrix(c(tidied2$x, tidied2$y), 2, length(tidied2$x), byrow = TRUE)
+  
+  data$avg_hausdorff_l3[i] <- computeAverageHausdorffDistance(drawing1, drawing2)
 }
 ```
 
 ```{r}
-#Getting the csv file
-write.csv(data,"C:\\Users\\binz7\\Desktop\\conceptviz_1_by_item_data_with_various_metrics_r.csv")
+# Calculates the distances for the 200 pairs on "bread" and storing it in the dataset for bitmaps
+for(i in 1:200)
+{
+  id1 = toString(data_bitmap$drawing_key_id_1[i])
+  id2 = toString(data_bitmap$drawing_key_id_2[i])
+
+  row1 <- which(bread$key_id == id1)
+  row2 <- which(bread$key_id == id2)
+  
+  tidied1 <- bitmap2coord(bread_bitmap, row1)
+  tidied2 <- bitmap2coord(bread_bitmap, row2)
+  
+  drawing1 <- as.matrix(tidied1)
+  drawing2 <- as.matrix(tidied2)
+  
+  data_bitmap$hausdorff[i] <- hausdorff_dist(drawing1, drawing2)
+  data_bitmap$mahalanobis[i] <- mean(mahalanobis.dist(drawing1, drawing2))
+  data_bitmap$euclidean[i] <- euclidean_dist(drawing1[,1], drawing1[,2], drawing2[,1], drawing2[,2])
+  data_bitmap$ss_index_pt[i] <- qd_ssim_pt(tidied1, tidied2)
+  data_bitmap$ss_index_bm[i] <- qd_ssim_bm(row1, row2, bread_bitmap)
+
+  drawing1 <- matrix(c(tidied1$x, tidied1$y), 2, length(tidied1$x), byrow = TRUE)
+  drawing2 <- matrix(c(tidied2$x, tidied2$y), 2, length(tidied2$x), byrow = TRUE)
+  
+  data_bitmap$avg_hausdorff[i] <- computeAverageHausdorffDistance(drawing1, drawing2)
+}
 ```
+
+```{r}
+# Calculates the distances for the 200 pairs on "tree" and storing it in the dataset for bitmaps
+for(i in 1:200)
+{
+  id1 = toString(data_bitmap$drawing_key_id_1[i+200])
+  id2 = toString(data_bitmap$drawing_key_id_2[i+200])
+
+  row1 <- which(tree$key_id == id1)
+  row2 <- which(tree$key_id == id2)
+  
+  tidied1 <- bitmap2coord(tree_bitmap, row1)
+  tidied2 <- bitmap2coord(tree_bitmap, row2)
+  
+  drawing1 <- as.matrix(tidied1)
+  drawing2 <- as.matrix(tidied2)
+
+  data_bitmap$hausdorff[i+200] <- hausdorff_dist(drawing1, drawing2)
+  data_bitmap$mahalanobis[i+200] <- mean(mahalanobis.dist(drawing1, drawing2))
+  data_bitmap$euclidean[i+200] <- euclidean_dist(drawing1[,1], drawing1[,2], drawing2[,1], drawing2[,2])
+  data_bitmap$ss_index_pt[i+200] <- qd_ssim_pt(tidied1, tidied2)
+  data_bitmap$ss_index_bm[i+200] <- qd_ssim_bm(row1, row2, tree_bitmap)
+  
+  drawing1 <- matrix(c(tidied1$x, tidied1$y), 2, length(tidied1$x), byrow = TRUE)
+  drawing2 <- matrix(c(tidied2$x, tidied2$y), 2, length(tidied2$x), byrow = TRUE)
+  
+  data_bitmap$avg_hausdorff[i+200] <- computeAverageHausdorffDistance(drawing1, drawing2)
+}
+```
+
+```{r}
+# Calculates the distances for the 200 pairs on "bread" with Angeli's method
+for(i in 1:200)
+{
+  id1 = toString(data$drawing_key_id_1[i])
+  id2 = toString(data$drawing_key_id_2[i])
+
+  row1 <- which(bread$key_id == id1)
+  row2 <- which(bread$key_id == id2)
+  
+  tidied1 <- slice(qd_tidy(bread, row1), 1:min(length(tidied1$x), length(tidied2$x)))
+  tidied2 <- slice(qd_tidy(bread, row2), 1:min(length(tidied1$x), length(tidied2$x)))
+  
+  drawing1 <- matrix(c(tidied1$x, tidied1$y), length(tidied1$x), 2)
+  drawing2 <- matrix(c(tidied2$x, tidied2$y), length(tidied2$x), 2)
+
+  data_test$hausdorff[i] <- hausdorff_dist(drawing1, drawing2)
+  data_test$euclidean[i] <- euclidean_dist(drawing1[,1], drawing1[,2], drawing2[,1], drawing2[,2])
+}
+```
+
+```{r}
+# Calculates the distances for the 200 pairs on "tree" with Angeli's method
+for(i in 1:200)
+{
+  id1 = toString(data$drawing_key_id_1[i+200])
+  id2 = toString(data$drawing_key_id_2[i+200])
+
+  row1 <- which(tree$key_id == id1)
+  row2 <- which(tree$key_id == id2)
+  
+  tidied1 <- qd_tidy(tree, row1)
+  tidied2 <- qd_tidy(tree, row2)
+  
+  tidied1 <- slice(qd_tidy(tree, row1), 1:min(length(tidied1$x), length(tidied2$x)))
+  tidied2 <- slice(qd_tidy(tree, row2), 1:min(length(tidied1$x), length(tidied2$x)))
+
+  data_test$hausdorff[i+200] <- hausdorff_dist(drawing1, drawing2)
+  data_test$euclidean[i+200] <- euclidean_dist(drawing1[,1], drawing1[,2], drawing2[,1], drawing2[,2])
+}
+```
+
+```{r}
+# Getting the csv files
+
+write.csv(data,"C:\\Users\\binz7\\Desktop\\conceptviz_1_by_item_data_with_various_metrics_r.csv")
+write.csv(data_bitmap,"C:\\Users\\binz7\\Desktop\\conceptviz_1_by_item_data_with_various_metrics_r_bm.csv")
+write.csv(data_test,"C:\\Users\\binz7\\Desktop\\conceptviz_1_by_item_data_with_various_metrics_r_tst.csv")
+```
+
+
+
 
 
