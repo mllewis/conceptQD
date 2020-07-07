@@ -16,6 +16,7 @@ library(StatMatch)
 library(SpatialPack)
 library(seewave)
 library(HistogramTools)
+library(Rtsne)
 ```
 
 ```{r}
@@ -38,7 +39,7 @@ data_bitmap <- dplyr::mutate(data, hausdorff = 0, avg_hausdorff = 0, mahalanobis
 
 data_test <- dplyr::mutate(data, hausdorff = 0, euclidean = 0)
 
-data <- dplyr::mutate(data, hausdorff = 0, avg_hausdorff = 0, mahalanobis = 0, euclidean = 0, hausdorff_f3 = 0, avg_hausdorff_f3 = 0, mahalanobis_f3 = 0, euclidean_f3 = 0, hausdorff_l3 = 0, avg_hausdorff_l3 = 0, mahalanobis_l3 = 0, euclidean_l3 = 0, ss_index_pt = 0, ss_index_bm = 0)
+data <- dplyr::mutate(data, hausdorff = 0, avg_hausdorff = 0, mahalanobis = 0, euclidean = 0, hausdorff_f3 = 0, avg_hausdorff_f3 = 0, mahalanobis_f3 = 0, euclidean_f3 = 0, hausdorff_l3 = 0, avg_hausdorff_l3 = 0, mahalanobis_l3 = 0, euclidean_l3 = 0, ss_index_pt = 0, ss_index_bm = 0, tsne_cos = 0, tsne_euclidean = 0)
 ```
 
 ```{r}
@@ -104,6 +105,12 @@ qd_ssim_bm <- function(row1, row2, bitmap)
   m2 <- matrix(bitmap[row2,], nrow = 28, byrow = T)
   return(SSIM(m1, m2)$SSIM)
 }
+
+qd_tsne <- function(row, bitmap)
+{
+  mat1 <- matrix(bitmap[row1,], nrow = 28, byrow = T)
+  return (Rtsne(mat, dims = 1, perplexity = 1, check_duplicates = FALSE)$Y)
+}
 ```
 
 ```{r}
@@ -128,6 +135,8 @@ for(i in 1:200)
   data$euclidean[i] <- euclidean_dist(drawing1[,1], drawing1[,2], drawing2[,1], drawing2[,2])
   data$ss_index_pt[i] <- qd_ssim_pt(tidied1, tidied2)
   data$ss_index_bm[i] <- qd_ssim_bm(row1, row2, bread_bitmap)
+  data$tsne_cos[i] = dist(matrix(c(qd_tsne(row1, bread_bitmap), qd_tsne(row2, bread_bitmap)), nrow = 2, byrow = TRUE), method = "cosine")[1]
+  data$tsne_euclidean[i] = dist(matrix(c(qd_tsne(row1, bread_bitmap), qd_tsne(row2, bread_bitmap)), nrow = 2, byrow = TRUE), method = "euclidean")[1]
 
   drawing1 <- matrix(c(tidied1$x, tidied1$y), 2, length(tidied1$x), byrow = TRUE)
   drawing2 <- matrix(c(tidied2$x, tidied2$y), 2, length(tidied2$x), byrow = TRUE)
@@ -211,6 +220,8 @@ for(i in 1:200)
   data$euclidean[i+200] <- euclidean_dist(drawing1[,1], drawing1[,2], drawing2[,1], drawing2[,2])
   data$ss_index_pt[i+200] <- qd_ssim_pt(tidied1, tidied2)
   data$ss_index_bm[i+200] <- qd_ssim_bm(row1, row2, tree_bitmap)
+  data$tsne_cos[i+200] = dist(matrix(c(qd_tsne(row1, tree_bitmap), qd_tsne(row2, tree_bitmap)), nrow = 2, byrow = TRUE), method = "cosine")[1]
+  data$tsne_euclidean[i+200] = dist(matrix(c(qd_tsne(row1, tree_bitmap), qd_tsne(row2, tree_bitmap)), nrow = 2, byrow = TRUE), method = "euclidean")[1]
   
   drawing1 <- matrix(c(tidied1$x, tidied1$y), 2, length(tidied1$x), byrow = TRUE)
   drawing2 <- matrix(c(tidied2$x, tidied2$y), 2, length(tidied2$x), byrow = TRUE)
@@ -379,6 +390,8 @@ write.csv(data,"C:\\Users\\binz7\\Desktop\\conceptviz_1_by_item_data_with_variou
 write.csv(data_bitmap,"C:\\Users\\binz7\\Desktop\\conceptviz_1_by_item_data_with_various_metrics_r_bm.csv")
 write.csv(data_test,"C:\\Users\\binz7\\Desktop\\conceptviz_1_by_item_data_with_various_metrics_r_tst.csv")
 ```
+
+
 
 
 

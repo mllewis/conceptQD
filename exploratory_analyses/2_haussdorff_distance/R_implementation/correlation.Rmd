@@ -47,7 +47,7 @@ human_ratings <- tibble(select(dist_data, human_rating_mean), select(dist_data, 
 ### Correlation between the distances and the human ratings
 ```{r}
 dist_data %>%
-  select(hausdorff, avg_hausdorff, mahalanobis, euclidean, hausdorff_f3, avg_hausdorff_f3, mahalanobis_f3, euclidean_f3, hausdorff_l3, avg_hausdorff_l3, mahalanobis_l3, euclidean_l3, ss_index_pt) %>%
+  select(hausdorff, avg_hausdorff, mahalanobis, euclidean, hausdorff_f3, avg_hausdorff_f3, mahalanobis_f3, euclidean_f3, hausdorff_l3, avg_hausdorff_l3, mahalanobis_l3, euclidean_l3, ss_index_pt, tsne_cos, tsne_euclidean) %>%
   cor(., human_ratings) %>%
   round(3)
 
