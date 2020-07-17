@@ -1,0 +1,50 @@
+---
+title: "Quickdraw Location Distances"
+author: "abalamur"
+date: "7/13/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#remotes::install_github("huizezhang-sherry/quickdraw")
+```
+
+
+
+
+
+```{r, warning = F, message = F}
+library(devtools)
+library(tidyverse)
+library(cloudml)
+library(quickdraw)
+library(dplyr)
+
+library(CoordinateCleaner)
+library(geosphere)
+library(sf)
+
+countries = read_csv("https://raw.githubusercontent.com/mllewis/conceptQD/master/data/processed/computational_distance_measures/top_50.csv")
+coords = countryref %>% select(iso2, centroid.lon, centroid.lat)
+write.csv(coords, 'Coordinates.csv', row.names = FALSE)
+
+```
+
+#### TOP 50 COUNTRIES ####
+```{r, message = False}
+combos = combn(countries$countrycode, 2)
+combos.df = as.data.frame(t(as.data.frame(combos)))
+bread.combos.df = combos.df %>% filter(., combos.df$V1 < combos.df$V2)
+
+write.csv(bread.combos.df, 'Bread_Countries.csv', row.names = FALSE)
+coords = read_csv("/Users/abalamur/Documents/Research/bread_coords.csv")
+
+```
+
+```{r}
+coords$distance = with(coords, distm(cbind(centroid.lon_x, centroid.lat_x), cbind(centroid.lon_y, centroid.lat_y), distHaversine))
+
+write.csv(coords, 'Top_50_Distances.csv', row.names = FALSE)
+
+```
