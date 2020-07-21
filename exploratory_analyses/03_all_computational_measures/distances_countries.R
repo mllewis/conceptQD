@@ -10,10 +10,16 @@ countries_data <- read_csv(countries_data_path)
 combinations <- as.data.frame(combn(countries_data$countrycode, 2))
 combinations <- data.frame(t(combinations))
 combinations <- rename(combinations, country1 = X1, country2 = X2)
-combinations <- as.tibble(combinations)
+c_pairs <- combinations
+combinations %>% 
+  slice(rep(1:n(), each = 100)) -> combinations
 
 combinations %>%
-  dplyr::mutate(hausdorff = 0, mahalanobis = 0, euclidean = 0) -> combinations
+  dplyr::mutate(drawing_key_id_1 = "0", 
+                drawing_key_id_2 = "0", 
+                hausdorff = 0, 
+                mahalanobis = 0, 
+                euclidean = 0) -> combinations
 
 bread <- qd_read("bread")
 
@@ -44,13 +50,13 @@ euclidean_dist <- function (x1, y1, x2, y2)
 
 country_pair <- function (country1, country2, samples, distances)
 {
-  row1 = which(countries_data$countrycode == country1)
-  row2 = which(countries_data$countrycode == country2)
+  row1 <- which(countries_data$countrycode == country1)
+  row2 <- which(countries_data$countrycode == country2)
   
   for (i in 1:100)
   {
-    tidied1 <- qd_tidy(samples, (row1 - 1) * 100 + i)
-    tidied2 <- qd_tidy(samples, (row2 - 1) * 100 + i)
+    tidied1 <- qd_tidy(samples, (row1 * 100) - 100 + i)
+    tidied2 <- qd_tidy(samples, (row2 * 100) - 100 + i)
     
     drawing1 <- matrix(c(tidied1$x, tidied1$y), length(tidied1$x), 2)
     drawing2 <- matrix(c(tidied2$x, tidied2$y), length(tidied2$x), 2)
@@ -58,20 +64,26 @@ country_pair <- function (country1, country2, samples, distances)
     distances$hausdorff[i] <- hausdorff_dist(drawing1, drawing2)
     distances$mahalanobis[i] <- mean(mahalanobis.dist(drawing1, drawing2))
     distances$euclidean[i] <- euclidean_dist(drawing1[,1], drawing1[,2], drawing2[,1], drawing2[,2])
+    distances$drawing_key_id_1[i] <- tidied1$key_id[1]
+    distances$drawing_key_id_2[i] <- tidied2$key_id[1]
   }
   return (distances)
 }
 
-distances <- data.frame(hausdorff = 1:100,
-                        mahalanobis = 1:100,
-                        euclidean = 1:100)
+distances <- tibble(drawing_key_id_1 = "0", 
+                    drawing_key_id_2 = "0",
+                    hausdorff = 1:100,
+                    mahalanobis = 1:100,
+                    euclidean = 1:100)
 
-for (i in 238:1225)
+for (i in 1:1225)
 {
-  d <- country_pair(combinations$country1[i], combinations$country2[i], bread_samples, distances)
-  combinations$hausdorff[i] <- mean(d$hausdorff)
-  combinations$mahalanobis[i] <- mean(d$mahalanobis)
-  combinations$euclidean[i] <- mean(d$euclidean)
+  d <- country_pair(c_pairs$country1[i], c_pairs$country2[i], bread_samples, distances)
+  combinations$drawing_key_id_1[((i*100)-99):(i*100)] <- d$drawing_key_id_1[1:100]
+  combinations$drawing_key_id_2[((i*100)-99):(i*100)] <- d$drawing_key_id_2[1:100]
+  combinations$hausdorff[((i*100)-99):(i*100)] <- d$hausdorff[1:100]
+  combinations$mahalanobis[((i*100)-99):(i*100)] <- d$mahalanobis[1:100]
+  combinations$euclidean[((i*100)-99):(i*100)] <- d$euclidean[1:100]
 }
 
 write.csv(combinations,"C:\\Users\\binz7\\Desktop\\countries_similarity.csv")
