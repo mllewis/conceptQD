@@ -1,0 +1,82 @@
+---
+title: Umap as distance measure
+subtitle: gender analysis
+author: Molly Lewis 
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    code_folding: hide
+    number_sections: no
+    toc: yes
+---
+  
+******
+
+```{r setup, include = F}
+# load packages
+library(knitr)
+library(rmarkdown)
+library(tidyverse)
+library(here)
+library(broom)
+opts_chunk$set(echo = T, message = F, warning = F, 
+               error = F, tidy = F, cache = F)
+theme_set(theme_classic())
+
+```
+
+```{r}
+
+HUMAN_DATA_PATH <- here("data/processed/human_data/by_item_means.csv")
+UMAP_DISTANCES <- here("data/processed/computational_distance_measures/umap_distances.csv")
+OTHER_SIMS <- here("data/processed/computational_distance_measures/conceptviz_1_by_item_data_with_various_metrics_r.csv")
+
+human_data <- read_csv(HUMAN_DATA_PATH)
+umap_data <- read_csv(UMAP_DISTANCES)
+other_sims <- read_csv(OTHER_SIMS)
+
+all_data <- left_join(human_data, umap_data) %>%
+  left_join(other_sims %>% select(contains("drawing"), avg_hausdorff, mahalanobis, euclidean))
+
+all_data %>%
+  ggplot(aes(x = mean_umap_cosine, y = mean)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~category) 
+
+all_data %>%
+  ggplot(aes(x = haus_sim, y = mean)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~category) 
+
+all_data %>%
+  group_by(category) %>%
+  nest() %>%
+  mutate(temp = map(data, ~tidy(cor.test(.$mean, .$mean_umap_cosine)))) %>%
+  select(-data) %>%
+  unnest()
+
+all_data %>%
+  group_by(category) %>%
+  nest() %>%
+  mutate(temp = map(data, ~tidy(cor.test(.$mean, .$haus_sim)))) %>%
+  select(-data) %>%
+  unnest()
+
+
+lmer(mean ~ haus_sim + mean_umap_cosine + (1|item), all_data) %>%
+  summary()
+
+
+lm(mean ~ log(avg_hausdorff) + log(mahalanobis) + log(euclidean) + mean_umap_cosine, all_data) %>%
+  summary()
+
+lm(mean ~ log(avg_hausdorff) + log(mahalanobis) + log(euclidean) + mean_umap_cosine, all_data) %>%
+  summary()
+
+
+
+
+
+```
