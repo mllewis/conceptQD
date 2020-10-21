@@ -19,6 +19,7 @@ library(rmarkdown)
 library(tidyverse)
 library(here)
 library(broom)
+library(lme4)
 opts_chunk$set(echo = T, message = F, warning = F, 
                error = F, tidy = F, cache = F)
 theme_set(theme_classic())
@@ -76,7 +77,7 @@ lm(mean ~ log(avg_hausdorff) + log(mahalanobis) + log(euclidean) + mean_umap_cos
   summary()
 
 
-
+# plot images in 2 d umap space?
 
 
 ```
