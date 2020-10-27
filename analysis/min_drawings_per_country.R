@@ -3,7 +3,7 @@ library(here)
 library(corpus)
 
 path1 <- here("data\\raw\\google_categories_coded.csv")
-path2 <- file.path("C:/Users/binz7/Documents/.quickdraw")
+path2 <- file.path("C:/Users/binz7/Documents/.quickdraw") ## the ndjson files of the quickdraw package are downloaded on my laptop
 categories <- read.csv(path1)
 
 categories %>%
@@ -13,7 +13,7 @@ categories %>%
   arrange(category) %>%
   mutate(total_drawings = 0, lowest_country = "", lowest_drawings = 0, fiftiety_country = "", fiftiety_drawings = 0) -> data
 
-for (i in length(data$category))
+for (i in 1:length(data$category))
 {
   name <- paste0(data$category[i], ".ndjson")
   json_file <- file.path(path2, name)
@@ -30,3 +30,9 @@ for (i in length(data$category))
   data$fiftiety_drawings[i] <- b[50,2]
 }
 
+data$lowest_country <- as.character(data$lowest_country)
+data$lowest_drawings <- as.numeric(data$lowest_drawings)
+data$fiftiety_country <- as.character(data$fiftiety_country)
+data$fiftiety_drawings <- as.numeric(data$fiftiety_drawings)
+
+write.csv(data, here("analysis/min_drawings_per_country.csv"))
