@@ -26,7 +26,6 @@ theme_set(theme_classic())
 
 ```{r}
 COUNT_PATH <- here("analysis/01_get_number_of_drawings/temp/temp_category_counts.csv")
-
 count_data <- read_csv(COUNT_PATH) 
 
 count_data_filtered <- count_data %>%

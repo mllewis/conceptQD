@@ -15,19 +15,21 @@ target_categories <- categories %>%
   rename(category = google_category_name) %>%
   arrange(category)
 
-get_n_drawings_per_item <- function(category_name, file_path){
+get_n_drawings_per_item <- function(category_name, file_path, out_path){
   name <- paste0(category_name, ".ndjson")
   json_file <- file.path(file_path, name)
   df <- read_ndjson(json_file)
 
-  df %>%
+  data_for_one_item <- df %>%
     count(countrycode) %>%
     mutate(category = category_name)
+
+  print(category_name)
+  write_csv(data_for_one_item, out_path, append = T)
 }
 
-all_category_counts <- map_df(target_categories$category,
+walk(target_categories$category,
        get_n_drawings_per_item,
-       RAW_DRAWING_PATH) %>%
-  arrange(category, n)
+       RAW_DRAWING_PATH,
+       COUNT_OUTPATH)
 
-write_csv(all_category_counts, COUNT_OUTPATH)
