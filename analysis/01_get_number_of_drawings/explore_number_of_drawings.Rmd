@@ -24,22 +24,70 @@ theme_set(theme_classic())
 
 ```
 
+## Number of drawings per country for bread, tree, house, chair, and bird
 ```{r}
-COUNT_PATH <- here("analysis/01_get_number_of_drawings/temp/temp_category_counts.csv")
-count_data <- read_csv(COUNT_PATH) 
+COUNT_PATH <- here("analysis/01_get_number_of_drawings/category_counts.csv")
+orig_csv <- read_csv(COUNT_PATH) 
+count_data <- tibble(country = c("AE", orig_csv$AE), 
+                     count = c(1040, orig_csv$`1040`), 
+                     category = c("airplane", orig_csv$airplane)) 
 
 count_data_filtered <- count_data %>%
-  filter(n > 1000)
+  group_by(category, country) %>%
+  filter(count > 1000, country != "US")
 
-ggplot(count_data_filtered, 
-       aes(y = n, x = reorder(countrycode, n))) +
-  geom_bar(stat = "identity") +
+plot_num_drawings_per_country <- function(target_category, data)
+{
+  data <- filter(data, category == target_category)
+  ggplot(data, aes(y = count, x = reorder(country, count))) +
+  geom_bar(stat = "identity", fill = "royalblue") +
   geom_hline(aes(yintercept = 1000),
-             color = "red", linetype = 2) +
-  facet_wrap(~category) +
-  ylab("countrycode") +
+             color = "white", linetype = 2) +
+  ylab("country") +
   theme(axis.text.x = 
           element_text(angle = 90, vjust = 0.5, hjust=1))
+}
 
+target_categories <- c("bread", "tree", "house", "chair", "bird")
+
+map(target_categories,
+       plot_num_drawings_per_country,
+       count_data_filtered)
+
+# COUNT_PATH <- here("analysis/01_get_number_of_drawings/temp/temp_category_counts.csv")
+# count_data <- read_csv(COUNT_PATH)
+# count_data_filtered <- count_data %>%
+#   filter(n > 1000)
+# ggplot(count_data_filtered,
+#        aes(y = n, x = reorder(countrycode, n))) +
+#   geom_bar(stat = "identity") +
+#   geom_hline(aes(yintercept = 1000),
+#              color = "red", linetype = 2) +
+#   facet_wrap(~category) +
+#   ylab("countrycode") +
+#   theme(axis.text.x =
+#           element_text(angle = 90, vjust = 0.5, hjust=1))
+
+```
+
+```{r}
+count_data %>%
+  filter(count > min_drawings) %>%
+  group_by(country) %>%
+  count() %>%
+  filter(n == 288) %>%
+  arrange(country)
+
+
+min_drawings <- 1000
+target_categories <- c("bread", "tree", "house", "chair", "bird")
+
+
+count_data %>%
+  filter(count > min_drawings, category %in% target_categories) %>%
+  group_by(country) %>%
+  count() %>%
+  filter(n == length(target_categories)) %>%
+  arrange(country)
 ```
 
