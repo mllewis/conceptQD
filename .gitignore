@@ -8,6 +8,8 @@
 .httr-oauth
 *_cache/*
 
+data/raw/sampled_drawings/*
+
 
 *.log
 

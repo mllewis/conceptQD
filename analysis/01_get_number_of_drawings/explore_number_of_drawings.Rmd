@@ -1,6 +1,6 @@
 ---
 title: Explore number of drawings per category
-author: Molly Lewis 
+author:Bin Zheng and Molly Lewis 
 date: "`r Sys.Date()`"
 output: 
   html_document:
@@ -17,20 +17,54 @@ library(knitr)
 library(rmarkdown)
 library(tidyverse)
 library(here)
+library
 
 opts_chunk$set(echo = T, message = F, warning = F, 
                error = F, tidy = F, cache = F)
 theme_set(theme_classic())
-
 ```
 
 ## Number of drawings per country for bread, tree, house, chair, and bird
 ```{r}
 COUNT_PATH <- here("analysis/01_get_number_of_drawings/category_counts.csv")
-orig_csv <- read_csv(COUNT_PATH) 
-count_data <- tibble(country = c("AE", orig_csv$AE), 
-                     count = c(1040, orig_csv$`1040`), 
-                     category = c("airplane", orig_csv$airplane)) 
+count_data <- read_csv(COUNT_PATH, col_names = c("country", "count", "category")) 
+```
+
+Country/category sampling plan: For all 288 categories, for the following 20 countries, we want to sample up to 1000 drawings (some countries will have less than 1000 drawings), creating 500 pairs within country. For each drawing pair in each country, calculate various similarity metrics. 
+
+"AU" "BR" "CA" "CZ" "DE" "FI" "GB" "IT" "PL" "RU" "SE" "US" "PH" "FR" "NL" "HU" "SA" "TH" "KR" "ID" 
+
+
+```{r}
+min_drawings <- 1000
+
+counts_with_min <- count_data %>%
+  filter(count >= min_drawings)
+
+category_counts <- counts_with_min %>%
+  count(category)
+
+country_counts <- counts_with_min %>%
+  count(country) %>%
+  arrange(-n)  %>%
+  slice(1:25)
+  
+hist(category_counts$n)
+
+category_counts %>%
+  ggplot(aes(y = n, x = reorder(category, n))) +
+  geom_bar(stat = "identity", fill = "royalblue") +
+  #geom_hline(aes(yintercept = 1000),
+   #          color = "white", linetype = 2) +
+  ylab("category") +
+  theme(axis.text.x = 
+          element_text(angle = 90, vjust = 0.5, hjust=1))
+
+
+```
+
+
+```{r}
 
 count_data_filtered <- count_data %>%
   group_by(category, country) %>%
@@ -70,7 +104,7 @@ map(target_categories,
 
 ```
 
-```{r}
+```{r, eval = F}
 count_data %>%
   filter(count > min_drawings) %>%
   group_by(country) %>%
@@ -79,7 +113,7 @@ count_data %>%
   arrange(country)
 
 
-min_drawings <- 1000
+
 target_categories <- c("bread", "tree", "house", "chair", "bird")
 
 
