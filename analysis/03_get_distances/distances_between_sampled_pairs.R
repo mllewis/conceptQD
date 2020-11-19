@@ -11,7 +11,7 @@ library(here)
 
 # some paths and reading in data
 
-eucl <- function (drawing1, drawing2)
+euclidean_dist <- function (drawing1, drawing2)
 {
   x1 <- drawing1[,1]
   y1 <- drawing1[,2]
