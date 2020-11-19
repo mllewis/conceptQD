@@ -9,6 +9,7 @@
 *_cache/*
 
 data/raw/sampled_drawings/*
+data/processed/sample_pairs.csv
 
 
 *.log
