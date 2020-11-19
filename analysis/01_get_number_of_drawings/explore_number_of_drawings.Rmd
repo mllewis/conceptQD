@@ -1,6 +1,6 @@
 ---
 title: Explore number of drawings per category
-author:Bin Zheng and Molly Lewis 
+author: Bin Zheng and Molly Lewis 
 date: "`r Sys.Date()`"
 output: 
   html_document:
@@ -17,7 +17,6 @@ library(knitr)
 library(rmarkdown)
 library(tidyverse)
 library(here)
-library
 
 opts_chunk$set(echo = T, message = F, warning = F, 
                error = F, tidy = F, cache = F)
@@ -26,7 +25,7 @@ theme_set(theme_classic())
 
 ## Number of drawings per country for bread, tree, house, chair, and bird
 ```{r}
-COUNT_PATH <- here("analysis/01_get_number_of_drawings/category_counts.csv")
+COUNT_PATH <- here("data/processed/category_counts.csv")
 count_data <- read_csv(COUNT_PATH, col_names = c("country", "count", "category")) 
 ```
 

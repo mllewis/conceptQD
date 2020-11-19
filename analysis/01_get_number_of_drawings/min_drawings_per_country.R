@@ -3,9 +3,9 @@ library(tidyverse)
 library(here)
 library(corpus) # for reading raw ndjson files
 
-CATEGORY_INFO_PATH <- here("data/raw/google_categories_coded.csv") #here("data\\raw\\google_categories_coded.csv")
-RAW_DRAWING_PATH <- file.path("C:/Users/binz7/Documents/.quickdraw") ## the ndjson files of the quickdraw package are downloaded on my laptop
-COUNT_OUTPATH <- here("analysis/01_get_number_of_drawings/category_counts.csv")
+CATEGORY_INFO_PATH <- here("data/raw/google_categories_coded.csv")
+RAW_DRAWING_PATH <- file.path("C:/Users/binz7/Documents/.quickdraw") ## ndjson files of the quickdraw drawings that's downloaded locally
+COUNT_OUTPATH <- here("data/processed/category_counts.csv")
 
 categories <- read_csv(CATEGORY_INFO_PATH)
 
