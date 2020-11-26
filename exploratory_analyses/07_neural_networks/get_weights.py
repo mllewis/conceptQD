@@ -1,84 +1,76 @@
+from PIL import Image
 from quickdraw import QuickDrawData
 from quickdraw import QuickDrawDataGroup
-from PIL import Image
+import json
+from trained_qd_model import *
 
 qd = QuickDrawData()
-#anvil = qd.get_drawing("anvil")
-# anvils = QuickDrawDataGroup("anvil")
-# anvil = anvils.get_drawing()
-# print(anvil)
-# x = anvil.image.save('anvil.png')
-#
-#
-# im = Image.open('anvil.png')
-# im = im.resize((92,92), Image.ANTIALIAS)
-# im.save('anvil.png')
-# print('width: %d - height: %d' % im.size)
-
-
-
 
 #####
 
-#load trained model, get arbitrary image, pass image into trained model, get weights, save weights to a file
 
-#load model
+# load trained model, get arbitrary image, pass image into trained model, get weights, save weights to a file
+
+# load model
 # model = load_model('trained_quickdraw.model')
 # model.summary()
 
 arms = QuickDrawDataGroup("arm")
 arm = arms.get_drawing()
-#extract key id from arm
-print(arm)
-x = arms.search_drawings(key_id= int(5778229946220544))
-#print the output?
-x[0]
+# extract key id from arm
+# print(arm)
+#x = arms.search_drawings(key_id= int(5778229946220544))
+# print the output?
+# x[0]
 arm.image.save('arm2.png')
 im = Image.open('arm2.png')
-im = im.resize((92,92), Image.ANTIALIAS)
+im = im.resize((92, 92), Image.ANTIALIAS)
 im.save('armcopy.png')
-print('width: %d - height: %d' % im.size)
+# print('width: %d - height: %d' % im.size)
 
 img_width = 28
 img_height = 28
 
 # store the label codes in a dictionary
-#label_dict = {0: 'arm', 1: 'bicycle', 2: 'book', 3: 'paper_clip'}
+# label_dict = {0: 'arm', 1: 'bicycle', 2: 'book', 3: 'paper_clip'}
 
 # print X_test_cnn[0]
 # CNN predictions
 
 #
-#cnn_probab = model.predict(X_test_cnn, batch_size=32, verbose=0)
-#print(cnn_probab[4])
+# cnn_probab = model.predict(X_test_cnn, batch_size=32, verbose=0)
+# print(cnn_probab[4])
 
 img = cv2.imread('armcopy.png', 0)
 
-#ret,thresh1 = cv2.threshold(img,127,255,cv2.THRESH_BINARY)
+# ret,thresh1 = cv2.threshold(img,127,255,cv2.THRESH_BINARY)
 img = cv2.resize(img, (img_width, img_height))
-plt.imshow((img.reshape((28,28))), cmap='gray_r')
+# plt.imshow((img.reshape((28,28))), cmap='gray_r')
 
-#print img, "\n"
-arr = np.array(img-255)
-#print arr
-arr = np.array(arr/255.)
-#print arr
+# print img, "\n"
+arr = np.array(img - 255)
+# print arr
+arr = np.array(arr / 255.)
+# print arr
 
-new_test_cnn = arr.reshape(1, 28, 28, 1).astype('float32') #(1,2,28,28)
+new_test_cnn = arr.reshape(1, 28, 28, 1).astype('float32')  # (1,2,28,28)
 print(new_test_cnn.shape)
-
-import operator
 
 # CNN predictions
 new_cnn_predict = model.predict(new_test_cnn, batch_size=32, verbose=0)
 
-#get model weights from new_cnn_predict and save them to csv along with respective key id (key id, weights array)
-#keep as matrix, instead of converting to png
-#determine which layer to get the weights from
-#rename file to "get_weights"
+#getting weights of the last layer
+print(model.layers[8].get_weights())
 
+# get weights for the layers
+# for l in model.layers:
+#     for w in l.weights:
+#         print(w)
 
-
+# get model weights from new_cnn_predict and save them to csv along with respective key id (key id, weights array)
+# keep as matrix, instead of converting to png
+# determine which layer to get the weights from
+# rename file to "get_weights"
 
 
 # pr = model.predict_classes(arr.reshape((1, 28, 28, 1))) #(1,1,28,28)
@@ -133,11 +125,11 @@ new_cnn_predict = model.predict(new_test_cnn, batch_size=32, verbose=0)
 #     plt.yticks([])
 
 
-#get weights from model.predict for each image
-#use pretrained model and pass an image
+# get weights from model.predict for each image
+# use pretrained model and pass an image
 
-#loaded the bitmaps of each google drawing from the 4 categories in the beginning
+# loaded the bitmaps of each google drawing from the 4 categories in the beginning
 # can we just take a single bitmap of a random drawing in there and pass it through?
 
 
-#load file qd_neural_nets.py
+# load file qd_neural_nets.py/trained_qd_model

@@ -136,7 +136,7 @@ model = cnn_model()
 #trains the model for a fixed number of epochs
 #validation_data =  Data on which to evaluate the loss and any model metrics at the end of each epoch.
 
-model.fit(X_train_cnn, y_train_cnn, validation_data=(X_test_cnn, y_test_cnn), epochs=3, batch_size=50) #changed from history =
+model.fit(X_train_cnn, y_train_cnn, validation_data=(X_test_cnn, y_test_cnn), epochs=1, batch_size=50) #changed from history =
 
 # Final evaluation of the model
 #returns the loss value and metric values for the model
