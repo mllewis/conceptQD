@@ -50,7 +50,7 @@ get_sampled_drawings <- function(category_name, file_path, sample_out_path, all_
   df1 %>%
     group_by(countrycode) %>%
     group_walk(~ write_drawings(.x, 
-                                SAMPLED_DRAWINGS_OUTPATH, 
+                                sample_out_path, 
                                 category_name, 
                                 .y$countrycode))
  
