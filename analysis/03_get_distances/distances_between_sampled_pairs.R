@@ -190,15 +190,16 @@ walk(categories$category,
 
 
 
-# walk(categories$category[1:2],
-#      get_distances_for_one_category_for_all_country_pairs,
-#      OUTPATH_DIRECTORY,
-#      DRAWING_DIRECTORY,
-#      country_num_to_loop[1:2, ],
-#      twenty_countries$countries)
+walk(c("bread", "tree", "bird", "chair", "house"),
+     get_distances_for_one_category_for_all_country_pairs,
+     OUTPATH_DIRECTORY,
+     DRAWING_DIRECTORY,
+     country_num_to_loop[1:5, ],
+     twenty_countries$countries)
+print(Sys.time())
 
-# Running this took a little over 4 minutes.
-# This is for 2 country pairs (AU/BR and AU/CA) for two categories (airplane and ambulance)
+# Running this took a little over 20 minutes.
+# This is for 5 country pairs (AU/BR, AU/CA, AU/CZ, AU/DE, and AU/FI) for five categories
 # Reading in the ndjson files was actually quite fast thanks to splitting it up wisely, but the time is takes to compute the similarity measures is not very good.
 
 
