@@ -3,10 +3,13 @@
 # library(pracma) # hausdorff_dist()
 library(ecr) # computeAverageHausdorffDistance()
 library(StatMatch) # mahalanobis.dist()
+library(proxy)
 library(quickdraw)
 library(here)
 library(tidyverse)
 library(corpus)
+library(foreach)
+library(doParallel)
 
 
 CATEGORY_INFO_PATH <- here("data/raw/288_categories.csv")
@@ -30,30 +33,6 @@ country_num_to_loop <- crossing(country1_num = twenty_countries$num,
   as.data.frame()
 
 categories <- read_csv(CATEGORY_INFO_PATH)
-
-
-
-# find fast euclidean distance package
-
-euclidean_dist <- function (drawing1, drawing2)
-{
-  x1 <- drawing1[,1]
-  y1 <- drawing1[,2]
-  x2 <- drawing2[,1]
-  y2 <- drawing2[,2]
-  e_dist <- 0
-
-  for (i in 1:(length(x1)))
-  {
-    for (j in 1:(length(x2)))
-    {
-      e_dist <- e_dist + sqrt((x1[i] - x2[j])^2 + (y1[i] - y2[j])^2)
-    }
-  }
-
-  e_dist / ((length(x1) * length(x2)))
-}
-
 
 
 ### Some helper functions for getting the ndjsons files
@@ -90,7 +69,6 @@ get_20_ndjsons_for_one_category <- function(category,
 # To do: get this more efficient
 get_similarity_for_one_drawing_pair <- function(i, c1_df, c2_df)
 {
-
   tidied1 <- qd_tidy(c1_df, i)
   tidied2 <- qd_tidy(c2_df, i)
 
@@ -98,7 +76,8 @@ get_similarity_for_one_drawing_pair <- function(i, c1_df, c2_df)
   drawing2 <- matrix(c(tidied2$x, tidied2$y), length(tidied2$x), 2)
 
   maha <- mean(mahalanobis.dist(drawing1, drawing2))
-  eucl <- euclidean_dist(drawing1, drawing2)
+  eucl <- mean(proxy::dist(x = drawing1, y = drawing2, method = "euclidean"))
+  # original eucl <- euclidean_dist(drawing1, drawing2)
 
   drawing1 <- matrix(c(tidied1$x, tidied1$y), 2, length(tidied1$x), byrow = TRUE)
   drawing2 <- matrix(c(tidied2$x, tidied2$y), 2, length(tidied2$x), byrow = TRUE)
@@ -142,15 +121,13 @@ get_distances_for_one_country_pair_and_category <- function(c1_num,
     mutate(category = target_category, 
            country1 = c1,
            country2 = c2)
-  
+
   path <- paste0(distance_outpath, "/", 
                  c1, "_", 
-                 c2, "_distances.csv")
-  write_csv(distances_for_one_pair_one_cat, path, append = T) #, col_names = T) 
-  
-  # Seems like including that part will add the column names more than once (every append also adds a row of column names)
-  # Column names: c("drawing_id_1", "drawing_id_2",	"mahalanobis",	"euclidean",	"avg_haus",	"category",	"country1",	"country2")
-
+                 c2, "_",
+                 target_category, 
+                 "_distances.csv")
+  write_csv(distances_for_one_pair_one_cat, path, col_names = T) 
 }
 
 
@@ -180,7 +157,7 @@ get_distances_for_one_category_for_all_country_pairs <- function(category,
 
 
 
-# Looping over category
+# Looping over the countries
 walk(categories$category,
      get_distances_for_one_category_for_all_country_pairs,
      OUTPATH_DIRECTORY,
@@ -190,6 +167,10 @@ walk(categories$category,
 
 
 
+
+# Running this took a little over 20 minutes.
+# This is for 5 country pairs (AU/BR, AU/CA, AU/CZ, AU/DE, and AU/FI) for five categories
+# Reading in the ndjson files was actually quite fast thanks to splitting it up wisely, but the time is takes to compute the similarity measures is not very good.
 walk(c("bread", "tree", "bird", "chair", "house"),
      get_distances_for_one_category_for_all_country_pairs,
      OUTPATH_DIRECTORY,
@@ -198,9 +179,103 @@ walk(c("bread", "tree", "bird", "chair", "house"),
      twenty_countries$countries)
 print(Sys.time())
 
-# Running this took a little over 20 minutes.
-# This is for 5 country pairs (AU/BR, AU/CA, AU/CZ, AU/DE, and AU/FI) for five categories
-# Reading in the ndjson files was actually quite fast thanks to splitting it up wisely, but the time is takes to compute the similarity measures is not very good.
+
+
+# Running in parallel
+num_cores <- detectCores() - 1
+clusters <- parallel::makeCluster(num_cores)
+registerDoParallel(clusters)
+
+foreach(i = 1:288, .packages = c("ecr", "StatMatch", "proxy", "purrr", "corpus", "quickdraw", "dplyr", "readr")) %dopar% 
+  {
+    walk(categories$category[i],
+         get_distances_for_one_category_for_all_country_pairs,
+         OUTPATH_DIRECTORY,
+         DRAWING_DIRECTORY,
+         country_num_to_loop,
+         twenty_countries$countries)
+  }
+
+stopCluster(clusters)
+
+
+# Testing it out
+
+### Not parallel: 704 secs
+
+system.time(
+  walk(categories$category[1:4],
+       get_distances_for_one_category_for_all_country_pairs,
+       OUTPATH_DIRECTORY,
+       DRAWING_DIRECTORY,
+       country_num_to_loop[1:2, ],
+       twenty_countries$countries)
+)
+
+### Parallel: 276 secs (3 cores)
+num_cores <- detectCores() - 1
+clusters <- parallel::makeCluster(num_cores)
+registerDoParallel(clusters)
+
+system.time(
+  foreach(i = 1:4, .packages = c("ecr", "StatMatch", "proxy", "purrr", "corpus", "quickdraw", "dplyr", "readr")) %dopar% 
+    {
+      walk(categories$category[i],
+           get_distances_for_one_category_for_all_country_pairs,
+           OUTPATH_DIRECTORY,
+           DRAWING_DIRECTORY,
+           country_num_to_loop[1:2, ],
+           twenty_countries$countries)
+    }
+)
+
+stopCluster(clusters)
+
+
+
+
+# Profiling: average hausdorff takes the longest, secondly mahalanobis, and lastly euclidean
+
+path1 <- paste0(DRAWING_DIRECTORY, "/", 
+               "octopus", "_", 
+               "AU", "_sampled_drawings.ndjson")
+df1 <- read_ndjson(file(path1))
+
+path2 <- paste0(DRAWING_DIRECTORY, "/", 
+                "octopus", "_", 
+                "BR", "_sampled_drawings.ndjson")
+df2 <- read_ndjson(file(path2))
+
+
+profvis::profvis({
+  walk(1:100,
+       get_similarity_for_one_drawing_pair,
+       df1,
+       df2)
+})
+
+
+
+# Running the following gives fatal error
+profvis::profvis(
+  {
+    walk(categories$category[1],
+         get_distances_for_one_category_for_all_country_pairs,
+         OUTPATH_DIRECTORY,
+         DRAWING_DIRECTORY,
+         country_num_to_loop[1, ],
+         twenty_countries$countries)
+  }
+)
+
+
+# Running this gives fatal error as well, seems like there's a time limit
+profvis::profvis({
+  walk(1:1000,
+       get_similarity_for_one_drawing_pair,
+       df1,
+       df2)
+})
 
 
 
@@ -211,69 +286,23 @@ print(Sys.time())
 
 
 
+# found fast euclidean distance package
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# get_country_pair_distances_for_one_category <- function(target_category_name,
-#                                                         country1,
-#                                                         country2,
-#                                                         data_directory ){
-#   
-#   # read in country1-cateogry file
-#   country1data <- #some json thing after making full data path
-#     
-#     # read in country2-cateogry file
-#     country2data <- #some json thing after making full data path
-#     
-#     target_number_of_pairs <- min(nrow(country1data), nrow(country2data))
-#   
-#   map_df(1:target_number_of_pairs,
-#          get_similarity_for_one_drawing_pair,
-#          country1data,
-#          country2data) %>%
-#     mutate(category = target_category_name)
-#   
-# }
-# 
-# get_country_pair_distances_for_all_categories <- function(c1,
-#                                                           c2,
-#                                                           category_names,
-#                                                           drawing_directory,
-#                                                           outpath_directory)
+# euclidean_dist <- function (drawing1, drawing2)
 # {
+#   x1 <- drawing1[,1]
+#   y1 <- drawing1[,2]
+#   x2 <- drawing2[,1]
+#   y2 <- drawing2[,2]
+#   e_dist <- 0
 #   
-#   all_category_distances_for_one_country_pair <- map_df(category_names, 
-#                                                         get_country_pair_distances_for_one_category, 
-#                                                         c1, 
-#                                                         c2, 
-#                                                         drawing_directory) %>%
-#     mutate(country1 = c1,
-#            country2 = c2)
+#   for (i in 1:(length(x1)))
+#   {
+#     for (j in 1:(length(x2)))
+#     {
+#       e_dist <- e_dist + sqrt((x1[i] - x2[j])^2 + (y1[i] - y2[j])^2)
+#     }
+#   }
 #   
-#   
-#   outpath <- paste(c1, "_", c2, outpath_directory)
-#   write_csv(all_category_distances_for_one_country_pair, outpath)
-#   
+#   e_dist / ((length(x1) * length(x2)))
 # }
-# 
-# 
-# 
-# walk2(countries_to_loop$country1[1],
-#       countries_to_loop$country2[1],
-#       get_country_pair_distances_for_all_categories,
-#       target_categories[1],
-#       DRAWING_DIRECTORY,
-#       OUTPATH_DIRECTORY)
-
