@@ -112,12 +112,12 @@ bread_id['key_id']=bread_id['key_id'].astype(int)
 bread_pairs = bread_id.merge(df, on=['key_id'], how='left')
 
 
-drawing = np.array(bread_pairs['bitmap'][0], dtype=np.uint8)
-new_test_cnn = drawing.reshape(1, 28, 28, 1).astype('float32')  # (1,2,28,28)
-#print(new_test_cnn.shape)
-
-# CNN predictions
-new_cnn_predict = model.predict(new_test_cnn, batch_size=32, verbose=0)
+# drawing = np.array(bread_pairs['bitmap'][0], dtype=np.uint8)
+# new_test_cnn = drawing.reshape(1, 28, 28, 1).astype('float32')  # (1,2,28,28)
+# #print(new_test_cnn.shape)
+#
+# # CNN predictions
+# new_cnn_predict = model.predict(new_test_cnn, batch_size=32, verbose=0)
 
 
 
@@ -132,7 +132,7 @@ new_cnn_predict = model.predict(new_test_cnn, batch_size=32, verbose=0)
 
 def weights():
     saved = {}
-    for i in range(len(bread_pairs["key_id"])): #10000 key_ids
+    for i in range(10000): #10000 key_ids
         drawing = np.array(bread_pairs['bitmap'][i], dtype=np.uint8) #save singular bitmap as a drawing
         new_test_cnn = drawing.reshape(1, 28, 28, 1).astype('float32') #reshape the drawing
         new_cnn_predict = model.predict(new_test_cnn, batch_size=32, verbose=0) #pass drawing to CNN
