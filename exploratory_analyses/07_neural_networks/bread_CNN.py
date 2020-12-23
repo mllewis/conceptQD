@@ -14,7 +14,7 @@ import pandas as pd
 
 bread = np.load('full_numpy_bitmap_bread.npy')
 
-#bread = np.c_[arm, np.zeros(len(bread))]
+#bread = np.c_[bread, np.zeros(len(bread))]
 
 A = bread[:10000]
 b = bread[:10000, -1]
@@ -94,7 +94,9 @@ print('Final CNN accuracy: ', scores[1]*100, "%")
 model.save('trained_quickdraw.model')
 #print("Model is saved")
 
-#### evaluate bread drawings####
+################################
+### evaluate bread drawings ####
+###############################
 
 bread_id = pd.read_csv("https://raw.githubusercontent.com/mllewis/conceptQD/master/exploratory_analyses/07_neural_networks/sampled_bread_ids.csv")
 records = map(json.loads, open('/Users/abalamur/Documents/Summer Research 20/full_simplified_bread.ndjson'))
@@ -103,64 +105,43 @@ df = pd.DataFrame.from_records(records)
 
 x = bread.tolist()
 df['bitmap'] = x
-print(df['bitmap'])
+#print(df['bitmap'])
 
 df['key_id']=df['key_id'].astype(int)
 bread_id['key_id']=bread_id['key_id'].astype(int)
 bread_pairs = bread_id.merge(df, on=['key_id'], how='left')
 
-# arms = QuickDrawDataGroup("arm")
-# arm = arms.get_drawing()
-# # extract key id from arm
-# # print(arm)
-# #x = arms.search_drawings(key_id= int(5778229946220544))
-# # print the output?
-# # x[0]
-# arm.image.save('arm2.png')
-# im = Image.open('arm2.png')
-# im = im.resize((92, 92), Image.ANTIALIAS)
-# im.save('armcopy.png')
-# # print('width: %d - height: %d' % im.size)
-#
-# img_width = 28
-# img_height = 28
-#
-# # store the label codes in a dictionary
-# # label_dict = {0: 'arm', 1: 'bicycle', 2: 'book', 3: 'paper_clip'}
-#
-# # print X_test_cnn[0]
-# # CNN predictions
-#
-# #
-# # cnn_probab = model.predict(X_test_cnn, batch_size=32, verbose=0)
-# # print(cnn_probab[4])
-#
-# img = cv2.imread('armcopy.png', 0)
-#
-# # ret,thresh1 = cv2.threshold(img,127,255,cv2.THRESH_BINARY)
-# img = cv2.resize(img, (img_width, img_height))
-# # plt.imshow((img.reshape((28,28))), cmap='gray_r')
-#
-# # print img, "\n"
-# arr = np.array(img - 255)
-# # print arr
-# arr = np.array(arr / 255.)
-# # print arr
 
 drawing = np.array(bread_pairs['bitmap'][0], dtype=np.uint8)
-#
-def weights():
-    saved = {}
-    for i in range(len(bread_pairs["key_id"])):
-        new_test_cnn = bread_pairs["key_id"][i].reshape(1, 28, 28, 1).astype('float32')
-        new_cnn_predict = model.predict(new_test_cnn, batch_size=32, verbose=0)
-
-
 new_test_cnn = drawing.reshape(1, 28, 28, 1).astype('float32')  # (1,2,28,28)
 #print(new_test_cnn.shape)
 
 # CNN predictions
 new_cnn_predict = model.predict(new_test_cnn, batch_size=32, verbose=0)
 
-#getting weights of the last layer
-print(model.layers[8].get_weights())
+
+
+
+
+# output csv with keyid + 100 columns for each weight within the array
+# get additional csv with the second to last layer as well
+#test on NEW bread drawings that we have human judgement files
+# find csv for the key_id with bread images that we have human judgements for (~200 pairs) so overall 400 weights in total
+
+
+
+def weights():
+    saved = {}
+    for i in range(len(bread_pairs["key_id"])): #10000 key_ids
+        drawing = np.array(bread_pairs['bitmap'][i], dtype=np.uint8) #save singular bitmap as a drawing
+        new_test_cnn = drawing.reshape(1, 28, 28, 1).astype('float32') #reshape the drawing
+        new_cnn_predict = model.predict(new_test_cnn, batch_size=32, verbose=0) #pass drawing to CNN
+        w = model.layers[8].get_weights() #getting weights of the last layer
+        w = list(w[0].flatten()) #get the 200 elements
+        saved[bread_pairs["key_id"][i]] = w #map to dictionary
+    return pd.DataFrame.from_dict(saved, orient = 'index').to_csv('bread_weights.csv')
+
+weights()
+
+# df = pd.DataFrame.from_dict(weights(), orient='index')
+# df.to_csv('bread_weights.csv')
