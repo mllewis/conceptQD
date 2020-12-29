@@ -5,14 +5,13 @@ library(tidyverse)
 library(jsonlite)
 library(parallel)
 
-
 CATEGORY_INFO_PATH <- here("data/raw/288_categories.csv")
 TARGET_COUNTRIES_PATH <- here("data/raw/20_countries.csv")
 DRAWING_DIRECTORY <- "/Users/mollylewis/Downloads/temp2/" #file.path("C:/Users/binz7/Documents/sampled_drawings")
 OUTPATH_DIRECTORY <- "/Users/mollylewis/Downloads/temp2/"
 N_COMP_CLUSTERS <- 3
 
-### helper functions
+############# FUNCTIONS ##########
 get_long_coordinates <- function(draw){ # similiar to tidy_qd but vectorized
   long_draw <- map_dfr(draw, function(st) {
     tibble::tibble(x = st[[1]], y = 255 - st[[2]])},
@@ -46,7 +45,7 @@ get_tidy_for_one_country_one_category <- function(country,
 }
 
 
-############# DO THE THING ##########
+############# DO THE THING (IN PARALLEL) ##########
 twenty_countries <- read_csv(TARGET_COUNTRIES_PATH) %>%
   arrange(countries)
 
@@ -54,14 +53,7 @@ categories <- read_csv(CATEGORY_INFO_PATH)
 
 country_category_pairs_to_loop <- crossing(country = twenty_countries$countries,
                                            categories$category) %>%
-  as.data.frame() %>%
-  slice(1)
-
-
-get_tidy_for_one_country_one_category("SE",
-                                      "bread",
-                                      DRAWING_DIRECTORY,
-                                      DRAWING_DIRECTORY)
+  as.data.frame()
 
 # INITIATE CLUSTER
 cluster <- makeCluster(N_COMP_CLUSTERS, type = "FORK")
@@ -70,9 +62,22 @@ parallel_wrapper <- function(i, combos, prefix_path, outpath){
   country <- combos %>% slice(i) %>% pull(country)
   category <-  combos %>% slice(i) %>% pull(category)
 
-  get_tidy_for_one_country_one_category(country,
+  temp <- get_tidy_for_one_country_one_category(country,
                                         category,
                                         prefix_path,
                                         outpath)
 }
+
+parLapply(cluster,
+          1:nrow(country_category_pairs_to_loop),
+          parallel_wrapper,
+          country_category_pairs_to_loop,
+          DRAWING_DIRECTORY,
+          OUTPATH_DIRECTORY)
+
+get_tidy_for_one_country_one_category("SE",
+                                                "bread",
+                                                DRAWING_DIRECTORY,
+                                                DRAWING_DIRECTORY)
+
 
