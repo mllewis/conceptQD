@@ -21,7 +21,8 @@ get_similarity_for_one_drawing_pair <- function(c1_df, c2_df){
   # get euclidean and mahalanobis
   drawing1 <- matrix(c(c1_df$x, c1_df$y), length(c1_df$x), 2)
   drawing2 <- matrix(c(c2_df$x, c2_df$y), length(c2_df$x), 2)
-  maha <- mean(mahalanobis.dist(drawing1, drawing2))
+  maha <- NA #this is necessary because maha fails when two drawings are identical (e.g. for line)
+  maha <- try(mean(mahalanobis.dist(drawing1, drawing2)))
   eucl <- mean(proxy::dist(x = drawing1, y = drawing2, method = "euclidean"))
 
   # get hausdorff
@@ -34,7 +35,8 @@ get_similarity_for_one_drawing_pair <- function(c1_df, c2_df){
          drawing_id_2 = c1_df$key_id[1],
          mahalanobis = maha,
          euclidean = eucl,
-         avg_haus = avgh)
+         avg_haus = avgh
+         )
 }
 
 get_distances_for_one_country_pair_and_category <- function(c1,
@@ -52,7 +54,7 @@ get_distances_for_one_country_pair_and_category <- function(c1,
     group_by(item) %>%
     nest()
 
-  path12 <- paste0(distance_inpath, "/",
+  path2 <- paste0(distance_inpath, "/",
                   target_category, "_",
                   c2, "_sampled_drawings.csv")
 

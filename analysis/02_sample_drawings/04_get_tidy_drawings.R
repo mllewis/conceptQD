@@ -75,7 +75,7 @@ parLapply(cluster,
           DRAWING_DIRECTORY,
           OUTPATH_DIRECTORY)
 
-get_tidy_for_one_country_one_category("SE",
+get_tidy_for_one_country_one_category("TH",
                                                 "bread",
                                                 DRAWING_DIRECTORY,
                                                 DRAWING_DIRECTORY)
