@@ -1,0 +1,117 @@
+---
+title: Exploration of pairwise distances
+subtitle:
+author: Molly Lewis
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc_float: no
+    code_folding: hide
+    number_sections: no
+    toc: yes
+---
+
+```{r setup, include = F}
+# load packages
+library(knitr)
+library(rmarkdown)
+library(tidyverse)
+library(here)
+library(ggdendro)
+
+opts_chunk$set(echo = T, message = F, warning = F,
+               error = F, tidy = F, cache = F)
+
+```
+
+```{r}
+
+MEAN_COUNTRY_DISTS <- here("data/processed/mean_sim_by_country_pair_item.csv")
+
+mean_country_dists <- read_csv(MEAN_COUNTRY_DISTS,
+                               col_names = c("category","country1", "country2", "log_avg_haus_mean","log_avg_haus_sd" ,"mahalanobis_mean", "mahalanobis_sd", "euclidean_mean"  , "euclidean_sd", "human_predic_sim_mean","human_predic_sim_sd", "log_human_predic_sim_mean", "log_human_predic_sim_sd" ))
+```
+
+```{r}
+long_dists <- mean_country_dists %>%
+  pivot_longer(cols = log_avg_haus_mean:log_human_predic_sim_sd)
+
+long_dists %>%
+  ggplot(aes(x = value)) +
+  geom_density() +
+  facet_wrap( ~name, scale = "free")
+```
+
+```{r}
+COUNTRY_NAMES <- here("data/raw/20_countries_with_labels.csv")
+
+country_names <- read_csv(COUNTRY_NAMES) %>%
+  rename(country1 = countries,
+         country_name1 = country_name) %>%
+  mutate(country2 = country1,
+         country_name2 = country_name1)
+
+
+country_pairs_to_loop <- crossing(country1 = country_names$country1,
+                                           country2 = country_names$country2) %>%
+  as.data.frame()
+
+```
+
+## human_predic_sim_mean
+```{r}
+country_means <- country_pairs_to_loop %>%
+  left_join(country_names %>% select(country1, country_name1)) %>%
+  left_join(country_names %>% select(country2, country_name2)) %>%
+  left_join(mean_country_dists) %>%
+  mutate_if(is.character, as.factor) %>%
+  group_by(country_name1, country_name2) %>%
+  summarize(mean_human_predic_sim_mean = mean(human_predic_sim_mean))
+
+country_means_full <-country_means %>%
+  left_join(country_means %>%
+              rename(temp = country_name1) %>%
+              mutate(country_name1 = country_name2,
+                     country_name2 = temp) %>%
+              ungroup() %>%
+              select(-temp), by = c("country_name1", "country_name2"))  %>%
+  mutate(mean_human_predic_sim_mean = case_when(is.na(mean_human_predic_sim_mean.x) ~ mean_human_predic_sim_mean.y,
+         TRUE~ mean_human_predic_sim_mean.x)) %>%
+  select(country_name1, country_name2, mean_human_predic_sim_mean) %>%
+  pivot_wider(names_from = "country_name1",
+              values_from = "mean_human_predic_sim_mean") %>%
+  column_to_rownames("country_name2")
+
+# why are there only 19 here?
+clusts <- hclust(as.dist(country_means_full, diag = FALSE ))
+plot(clusts)
+```
+
+## log_human_predic_sim_mean
+```{r}
+country_means <- country_pairs_to_loop %>%
+  left_join(country_names %>% select(country1, country_name1)) %>%
+  left_join(country_names %>% select(country2, country_name2)) %>%
+  left_join(mean_country_dists) %>%
+  mutate_if(is.character, as.factor) %>%
+  group_by(country_name1, country_name2) %>%
+  summarize(mean_human_predic_sim_mean = mean(log_human_predic_sim_mean))
+
+country_means_full <-country_means %>%
+  left_join(country_means %>%
+              rename(temp = country_name1) %>%
+              mutate(country_name1 = country_name2,
+                     country_name2 = temp) %>%
+              ungroup() %>%
+              select(-temp), by = c("country_name1", "country_name2"))  %>%
+  mutate(mean_human_predic_sim_mean = case_when(is.na(mean_human_predic_sim_mean.x) ~ mean_human_predic_sim_mean.y,
+         TRUE~ mean_human_predic_sim_mean.x)) %>%
+  select(country_name1, country_name2, mean_human_predic_sim_mean) %>%
+  pivot_wider(names_from = "country_name1",
+              values_from = "mean_human_predic_sim_mean") %>%
+  column_to_rownames("country_name2")
+
+# why are there only 19 here?
+clusts <- hclust(as.dist(country_means_full, diag = FALSE ))
+plot(clusts)
+```

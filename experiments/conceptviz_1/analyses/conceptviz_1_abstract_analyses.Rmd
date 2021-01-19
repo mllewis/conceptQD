@@ -1,0 +1,429 @@
+---
+title: Evolang abstract 2018 analyses
+author: Molly Lewis 
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc_float: true
+    code_folding: hide
+---
+  
+******
+******
+
+Includes: 
+- analyses for experimental data
+- info model for pairiwise country preidction of HDS
+- info/code for drawing figure (decile grid) and map
+  
+```{r setup, include = F}
+rm(list = ls())
+
+# load packages
+library(knitr)
+library(rmarkdown)
+library(langcog)
+library(tidyverse)
+library(purrr)
+library(feather)
+library(forcats)
+library(googlesheets)
+library(jsonlite)
+library(broom)
+library(magick)
+library(corrr)
+library(directlabels)
+library(lme4)
+library(grid)
+library(gridExtra)
+
+#source("../R_scripts/helpers.R")
+
+opts_chunk$set(echo = T, message = F, warning = F, 
+               error = F, tidy = F, cache = T, fig.height = 4)
+```
+
+# Similarity measures
+Cosine and HD measures for 1500 pairs for both items
+```{r}
+bread_cs <- read_feather("../../../data/keras_similarities/pairwise_country/bread_all_sims.txt") %>%
+  select(key_id_1, key_id_2, cosine)
+
+bread_hd_1500 <- read_csv("../../../data/hausdorff_similarities/pair_lists/bread_sampled_pairs_with_sims_hd.csv", col_types = list( col_character(), col_character(), col_double()))
+
+bread_hd_cs <- left_join(bread_hd_1500, bread_cs) %>%
+  mutate(item = "bread")
+
+tree_cs <- read_feather("../../../data/keras_similarities/pairwise_country/tree_all_sims.txt") %>%
+  select(key_id_1, key_id_2, cosine)
+
+tree_hd_1500 <- read_csv("../../../data/hausdorff_similarities/pair_lists/tree_sampled_pairs_with_sims_hd.csv", 
+                         col_types = list( col_character(), col_character(), col_double()))
+
+tree_hd_cs <- left_join(tree_hd_1500, tree_cs) %>%
+  mutate(item = "tree")
+
+all_sims <- bind_rows(bread_hd_cs, tree_hd_cs)
+
+## descriptive stats for HD and CD
+all_sims %>%
+  gather("measure", "value", 3:4) %>%
+  group_by(measure) %>%
+  summarize(mean = mean(value, na.rm = T),
+            sd = sd(value, na.rm = T)) %>%
+  kable()
+
+# correlation between HD and CD
+cor.test(all_sims$hd_sim, all_sims$cosine)
+```
+
+# Experimental data (conceptviz_1)
+## Read in experiment data from google sheet
+```{r}
+d_raw <- gs_title("conceptviz_1_data") %>%
+            gs_read()
+
+d <- map_df(d_raw$data, fromJSON, simplifyDataFrame = TRUE) %>%
+  bind_cols(subj_id = d_raw$subj_id) %>%
+  select(subj_id, everything())
+```
+
+## Tidy data
+```{r}
+d_tidy <- d %>%
+  gather(variable, value, -subj_id) %>%
+  separate(variable, c("variable", "trial_num"), sep = "_T") %>%
+  spread(variable, value) %>%
+  mutate_at(c("trial_num", "haus_sim", "rating", "RT", "trial_ID",  "haus_bin"), as.numeric) %>%
+  mutate_at(c("category", "drawing_key_id_1", "drawing_key_id_2","trial_type", "subj_id"), as.factor)
+```
+
+## Attention Checks
+```{r}
+d_tidy %>%
+ # filter(trial_type == "attention_check") %>%
+  select(subj_id, rating) %>%
+  count(rating) %>%
+  ggplot(aes(x = rating, y = n/200)) +
+  geom_bar(stat = "identity") +
+  ylab("proportion responses")+
+  ggtitle("prop. attention checks") +
+  theme_minimal()
+
+mean_attention_check_ratings = d_tidy %>%
+  filter(trial_type == "attention_check") %>%
+  group_by(subj_id) %>% 
+  summarize(mean = mean(rating)) %>%
+  filter(mean < mean(.$mean))
+
+d_tidy_crit <- d_tidy %>%
+  filter(subj_id %in% mean_attention_check_ratings$subj_id) %>%
+  filter(trial_type == "critical_trial") 
+```
+
+## Hausdorff by decile and ratings
+```{r, fig.width = 5}
+
+means_ratings_by_bin <- d_tidy_crit %>%
+  group_by(haus_bin, category) %>%
+  multi_boot_standard(col = "rating", na.rm = TRUE)
+
+#pdf("distance_decile.pdf", width = 5.5, height  = 5)
+ggplot(means_ratings_by_bin, aes(x = haus_bin, y = mean, group = category, color = category)) +
+  geom_pointrange(aes(ymin = ci_lower, ymax = ci_upper)) +
+  geom_smooth(method = "lm") +
+  ylab("Mean Similarity Rating") +
+  xlab("Hausdorff Distance Decile") +
+  ggtitle("Similarity Ratings by Hausdorff Distance Decile") +
+       scale_x_continuous(expand = c(0.15, 0), breaks = 1:10) +
+
+  theme(text = element_text(size=13),
+      plot.title=element_text(size=14, face = "bold"),
+      plot.background = element_blank(),
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      panel.border = element_blank(),
+      legend.position = "none",
+      axis.line = element_line(color = 'black'),
+      panel.background = element_rect(fill = "white",
+                                colour = "white",
+                                size = 0.5, linetype = "solid"))  +
+    directlabels::geom_dl(aes(label = category), method = list(dl.trans(x = x + .3), "last.bumpup")) 
+# https://stackoverflow.com/questions/38088966/directlabels-package-in-r-labels-do-not-fit-in-plot-area
+#dev.off()
+```
+
+## Hausdorff continuous and Imagenet-NN cosine vs. ratings
+```{r, fig.width = 9}
+tree_all_measures <- read_csv(paste0("../../../data/hausdorff_similarities/pair_lists/balanced_lists/tree_all_measures.csv")) %>%
+    mutate_at(c("key_id_1", "key_id_2", "country_code_1","country_code_2"), as.factor) %>%
+  select(key_id_1, key_id_2, hd_sim, mhd_sim, cosine, country_code_1, country_code_2) %>%
+  mutate(category = "tree")
+
+bread_all_measures <- read_csv(paste0("../../../data/hausdorff_similarities/pair_lists/balanced_lists/bread_all_measures.csv")) %>%
+    mutate_at(c("key_id_1", "key_id_2", "country_code_1","country_code_2"), as.factor)  %>%
+  select(key_id_1, key_id_2, hd_sim, mhd_sim, cosine,  country_code_1, country_code_2)  %>%
+  mutate(category = "bread")
+
+all_measures <- d_tidy %>%
+  rename(key_id_1 = drawing_key_id_1,
+         key_id_2 = drawing_key_id_2) %>%
+  left_join(bind_rows(tree_all_measures, bread_all_measures), 
+            by = c("key_id_1", "key_id_2", "category")) %>%
+  select(subj_id, trial_ID, category, rating, haus_sim, cosine, country_code_1, country_code_2, trial_num, haus_bin) %>%
+  rename(hd_sim = haus_sim) %>%
+  mutate(trial_ID2 = paste0(category, trial_ID)) 
+
+item_means <- all_measures %>%
+  group_by(trial_ID2) %>%
+  summarize(rating = mean(rating, na.rm = T)) 
+
+item_means %>%
+  left_join(all_measures %>% select(trial_ID2, hd_sim, cosine) %>%
+              distinct(),
+            by = "trial_ID2") %>%
+  gather("measure", "value", 3:4) %>%
+  group_by(measure) %>%
+  do(tidy(cor.test(.$rating, .$value))) %>%
+  select(-parameter, -method, -alternative) %>%
+  kable()
+```
+
+## Predicting ratings with sim measures
+```{r}
+summary(lmer(rating ~ scale(hd_sim) + scale(cosine) + (1|subj_id), all_measures))
+```
+
+## Predicting HD with country variables: 12_predicting_pairwise_HD.Rmd
+```{r}
+# To get pairwise HD: get_HD_pairwise.R (gets *even* pairs across drawing pairs)
+# This is the model: 
+# m2 <- lmer(log_hd_sim ~ scale(wals_euclidean_dist)*scale(asjp_dist) + scale(centroid_dist_meters) +
+#               (1|all_codes) + (1|item), REML = FALSE,
+#             pairwise_hds_with_predicts)
+# with all items 17 (-arm)
+```
+
+# Map figure: 13_within_country_protoype_bread.Rmd
+```{r}
+# pairwise within calculated from: get_HD_within_country.R
+```
+
+# Decile drawing grid figure
+```{r}
+bread_stim <- read_csv("../data/sim_experiment_stimuli_bread.csv",  col_types = list(col_integer(), col_character(), col_character(), col_character(), col_double(), col_double()))
+
+SIM_BIN <- 10
+plot_ids <- bread_stim %>%
+  filter(hd_bin == SIM_BIN) %>%
+  sample_n(20) %>%
+  mutate(id = 1:n()) %>%
+  gather("measure", "key_id_num", 3:4) %>%
+  arrange(id)
+
+files <- list.files("../../data/keras_similarities/pair_sim_drawings/images/bread/")
+long_files = paste0("../images/drawings/", plot_ids$key_id_num, ".jpeg")
+
+
+
+rl = lapply(long_files, image_read)
+gl = lapply(rl, grid::rasterGrob)
+gridExtra::grid.arrange(grobs = gl, nrow = 8, padding = unit(0, "line"))
+grid.rect(gpar(fill=NA))
+
+par(mfrow = c(2, 2))
+
+# 1 = c("4517415574568960", "5171456952500224")
+# 5 = c("5530798088257536", "6476551229014016")
+# 10 = c("5507829509128192", "5139027634159616")
+```
+
+get grid items
+```{r}
+plot_ids <- d_tidy %>%
+  group_by(category, haus_bin, trial_ID) %>%
+  summarize(mean_rating = mean(rating, na.rm = T))%>%
+  arrange(category, haus_bin, mean_rating) %>%
+  slice(1) %>%
+  left_join(d_tidy %>% select(category, trial_ID, drawing_key_id_1, drawing_key_id_2) %>%
+group_by(category, trial_ID) %>% slice(1))  %>%
+  ungroup() %>%
+  mutate(id = 1:n()) %>%
+  gather("measure", "key_id_num", 5:6) %>%
+  arrange(-haus_bin, id) 
+
+for (i in 1:length(long_files)){
+  g <-image_read(long_files[i]) %>%
+               image_oilpaint() %>%
+                image_flatten('Modulate')
+  image_write(g, paste0(long_files[i], "_hc"))
+}
+
+```
+
+
+make ground
+```{r}
+#pdf("/Users/mollylewis/Documents/research/Projects/conceptviz/papers/evolang_abstract_2018/evolang12_latex_good/drawing_fig2.pdf", height = 500/2, width = 450)
+N_COLS <- 4
+N_ROWS <- 10
+WIDTH <- 50 # pictures are square
+MARGIN <- .2
+
+pic_coords <- data.frame(x1 = rep(seq(0, (WIDTH * N_COLS-WIDTH), by = WIDTH), N_ROWS), 
+                         y1 = rep(seq(0, (WIDTH * N_ROWS-WIDTH), by = WIDTH),  each = N_COLS), 
+                         x2 = rep(seq(WIDTH, WIDTH * N_COLS, by = WIDTH), N_ROWS), 
+                         y2 = rep(seq(WIDTH, WIDTH * N_ROWS, by = WIDTH), each = N_COLS))
+
+pic_coords <- pic_coords %>%
+  mutate(x1 = x1 + 5,
+         x2 = x2 + 5)
+
+op <- par(mar=c(MARGIN, MARGIN, MARGIN, MARGIN))
+plot(c(0,N_COLS * WIDTH), c(0, N_ROWS * WIDTH), 
+     type = "n",
+     axes = FALSE,
+     xlab = "", 
+     ylab = "")
+
+for (i in 1:length(long_files)) {
+  image <- image_read(paste0(long_files[i], "_hc"))
+  rasterImage(image, 
+              pic_coords$x1[i], 
+              pic_coords$y1[i],
+              pic_coords$x2[i], 
+              pic_coords$y2[i])
+}
+XX = 1.5
+text(0,475, "1", cex = XX)
+text(0,425, "2", cex = XX)
+text(0,375, "3", cex = XX)
+text(0,325, "4", cex = XX)
+text(0,275, "5", cex = XX)
+text(0,225, "6", cex = XX)
+text(0,175, "7", cex = XX)
+text(0,125, "8", cex = XX)
+text(0,75, "9", cex = XX)
+text(0,25, "10", cex = XX)
+par(op)
+#dev.off()
+```
+
+
+
+############ Misc ############ 
+Merge in country variables
+```{r, eval = F}
+
+all_predictors %>%
+  ga
+
+item_means2 <- all_measures %>% 
+  group_by(trial_ID2, haus_bin, category) %>%
+  summarize(rating = mean(rating, na.rm = T)) %>%
+  left_join(all_predictors %>% group_by(trial_ID2) %>% slice(1), by = "trial_ID2")  %>%
+  group_by(haus_bin, category.x) %>%
+  summarize(rating = mean(rating),
+            wals_euclidean_dist = mean(wals_euclidean_dist, na.rm = T),
+            asjp_dist = mean(asjp_dist, na.rm  = T),
+            centroid_dist_meters = mean(centroid_dist_meters, na.rm = T),
+            log_normalized_n_events_all = mean(log_normalized_n_events_all, na.rm = T),
+            log_normalized_mean_imports_dollars = mean(log_normalized_mean_imports_dollars, na.rm = T),
+            hd_sim = mean(hd_sim, na.rm = T))
+
+item_means2 %>%
+  gather("measure", "value", c(4:9)) %>%
+  ggplot(aes(x = haus_bin, y = value, color = category.x)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~measure, scales = "free")
+
+ 
+item_means2 %>%
+  gather("measure", "value", c(3, 6:9)) %>%
+  ggplot(aes(x = value, y = rating)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~measure, scales = "free")
+
+item_means2 %>%
+  gather("measure", "value", c(3, 6:9)) %>%
+  ggplot(aes(x = value, y = rating, color = category)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~measure, scales = "free")
+
+
+  ggplot(item_means2, aes(x = log(centroid_dist_meters), y = rating)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+
+```
+
+
+## Models for predicting ratings with country variables
+```{r, , eval = F}
+item_means2 %>%
+  #filter(country_code_1 != country_code_2) %>%
+gather("measure", "value", c(3, 6:9)) %>%
+group_by(measure) %>%
+  do(tidy(cor.test(.$rating, .$value))) %>%
+  select(-parameter, -method, -alternative) %>%
+  kable()
+
+# correlations by category
+item_means2 %>%
+  filter(category == "tree") %>%
+gather("measure", "value", c(3, 6:9)) %>%
+  group_by(measure) %>%
+  do(tidy(cor.test(.$rating, .$value))) %>%
+  select(-parameter, -method, -alternative) %>%
+  kable()
+
+# mixed effect model
+
+all_measures_with_dyadic2 <-
+  all_measures_with_dyadic %>%
+  filter(country_code_1 != country_code_2)
+
+all_measures_with_dyadic <- all_measures %>%
+  left_join(all_predictors)
+
+summary(lmer(rating ~  scale(centroid_dist_meters)*category + 
+               scale(wals_euclidean_dist)*category + 
+               (1 |trial_ID2) + (1|subj_id), all_measures_with_dyadic))
+
+summary(lmer(rating ~  + scale(asjp_dist)*category + (1 |trial_ID2) + (1|subj_id), all_measures_with_dyadic))
+
+summary(lmer(rating ~  scale(centroid_dist_meters)*category +   + scale(log_normalized_mean_imports_dollars)*category + (1 |trial_ID2) + (1|subj_id) + (1|country_code_1) + (1|country_code_2), all_measures_with_dyadic))
+
+summary(lmer(rating ~  scale(asjp_dist)*category + 
+               (1 |trial_ID2) + (1|subj_id) +  (1|country_code_1) + (1|country_code_2), all_measures_with_dyadic2))
+
+summary(lmer(rating ~  scale(asjp_dist)*category+ (1 |trial_ID2) + (1|subj_id) + (1|category), all_measures_with_dyadic))
+
+summary(lmer(rating ~  scale(asjp_dist)*category + (1 |trial_ID2) + (1|subj_id) + (1|country_code_1) + (1|country_code_2), all_measures_with_dyadic2))
+
+
+summary(lmer(rating ~ scale(centroid_dist_meters)*category+ 
+               #scale(log_normalized_n_events_all) + 
+               scale(wals_euclidean_dist)*category +
+               (1|trial_ID2) + (1|subj_id), 
+              all_measures_with_dyadic))
+
+
+
+summary(lmer(rating ~ scale(log_normalized_mean_imports_dollars)*category+ 
+               #scale(log_normalized_n_events_all) + 
+               scale(centroid_dist_meters)*category +
+               (1|trial_ID2) + (1|subj_id), 
+              all_measures_with_dyadic))
+
+
+summary(lmer(rating ~ scale(log_normalized_mean_imports_dollars)*category+ scale(asjp_dist)*category +
+               #scale(log_normalized_n_events_all) + 
+               scale(centroid_dist_meters)*category +
+               (1|trial_ID2) + (1|subj_id), 
+              all_measures_with_dyadic2))
+```
+

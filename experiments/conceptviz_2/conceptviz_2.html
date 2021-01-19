@@ -1,0 +1,115 @@
+<html>
+<head>
+    <title>What do you think of these pictures?</title>
+
+    <!--CSS -->
+    <link href="css/full-projects/jquery-ui/jquery-ui.min.css" rel="stylesheet" type="text/css" />
+    <link href="css/langcog-style.css" rel="stylesheet" type="text/css" />
+    <link href="css/local-style.css" rel="stylesheet" type="text/css" />
+
+    <!-- external general utilities -->
+    <script type="text/javascript" src="js/helpers/jquery-1.11.1.min.js "></script>
+    <script type="text/javascript" src="css/full-projects/jquery-ui/jquery-ui.min.js"></script>
+    <script type="text/javascript" src="js/helpers/raphael-min.js"></script>
+    <script type="text/javascript" src="js/helpers/tabletop.js"></script>
+    <script type="text/javascript" src="js/helpers/discrete.js"></script>
+    <script type="text/javascript" src="js/helpers//google_sheet.js"></script>
+    <script type="text/javascript" src="js/helpers/utils_ML.js"></script>
+
+</head>
+<body>
+
+<!--CONSENT SLIDE-->
+    <div class="slide" id="consent">
+    <br>
+      <img src="images/wisconsinlogo.png" alt="UW-Madison" style="display: block;margin: auto;"/>
+
+        <p class="block-text" id = "legal">
+        The HIT you are about to do is sponsored by University of Wisconsin-Madison. You will complete a quick survey in which you will be shown some images, words, or hear some sounds and asked to make judgments about them. For example, you may be asked how typical a picture of a dog is of dogs in general, or to identify an ambiguous drawing, decide what word a sound makes you think of, to choose which visual pattern best completes a sequence of patterns, or indicate how vividly you see in your "mind's eye." HIT instructions will be provided on the next screen.
+        <br>
+        <br>
+        This task has no anticipated risks nor direct benefits. If you have any questions or concerns about this HIT please contact the principal investigator: Dr. Gary Lupyan at lupyan@wisc.edu. If you are not satisfied with response of the research team, have more questions, or want to talk with someone about your rights as a research participant, you should contact University of Wisconsin's Education Research and Social and Behavioral Science IRB Office at 608-263-2320. You are free to decline to participate, to end participation at any time for any reason.
+        </p>
+        <br>
+
+        <button type="button" onClick="this.blur(); experiment.instructions()">Begin Survey</button>
+    </div>
+
+<!--INSTRUCTION SLIDE-->
+    <div class="slide" id="instructions">
+    <br>
+    <br>
+   <p class="block-text2"> <b> Instructions: </b> </p>
+    <br>
+
+    <div id="instructions_cat1"> </div>
+
+    <br>
+
+    <div id="instructions_cat2"> </div>
+
+    <br>
+
+    <p class="block-text2"> Use the keys 1-7 on your keyboard to enter your response. </p>
+
+    <br>
+
+    <p class="block-text2"> To begin, click the button below. </p>
+
+    <br>
+    <br>
+
+    <button type="button" onClick="this.blur(); experiment.next()">Begin</button>
+    <br>
+    </div>
+
+
+<!--RATING SLIDE-->
+    <div class="slide" id="complex_rating">
+       <!-- question and image -->
+        <table align="center" cellpadding="10">
+
+            <tr>
+                 <br>
+                    <td align="center">  <div id="ratingimage1"> </div></td>
+                    <td align="center">  <div id="ratingimage2"> </div></td>
+            </tr>
+        </table>
+
+        <table align="center">
+            <tr>
+                <td><br> <div id="ratingquestion"> </div></td>
+            </tr>
+        </table>
+
+          <!-- rating scale -->
+        <div id = "drawing_canvas"></div>
+
+        <!--button and counter-->
+        <br> <br>
+
+          <table align="center">
+                <tr> <td align="center"><p> <i> Use the numbers 1-7 on your keyboard to respond </i></p> </td></tr>
+                <tr><td align="center"><div id = "counter"></div> </td> </tr>
+         </table>
+
+    </div>
+
+<!--FINISHED SLIDE-->
+    <div class="slide" id="finished">
+    <br>
+    <br>
+    <br>
+        <p class="block-text2"> Finished! Thanks for participating. Please enter the completion code below in the Amazon Mechanical Turk window. </p>
+
+        <table align="center">
+            <tr>
+                <td><br> <div id="completion_code"> </div></td>
+            </tr>
+        </table>
+    </div>
+
+    <script src="js/conceptviz_2.js"></script>
+
+  </body>
+</html>

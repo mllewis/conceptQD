@@ -1,0 +1,104 @@
+---
+title: Check stimuli for concept viz 2
+author: Molly Lewis 
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc_float: true
+    code_folding: hide
+---
+  
+******
+******
+  
+```{r setup, include = F}
+
+# load packages
+library(knitr)
+library(rmarkdown)
+library(langcog)
+library(tidyverse)
+library(purrr)
+library(feather)
+library(forcats)
+library(magick)
+library(data.table)
+library(here)
+
+opts_chunk$set(echo = T, message = F, warning = F, 
+               error = F, tidy = F, cache = F, fig.height = 4)
+```
+
+```{r}
+GDRAW_SIZE <- 255
+IMAGENET_SIZE <- 224
+N_INTERPOLATE <- 500 
+N_ILE <- 10
+
+```
+
+## Check items befor running
+
+Confirm that pairs are sensible
+```{r}
+plot_pairs <- function(item, sim_bin){
+  print(sim_bin)
+
+  JPEG_PATH <- here(paste0("experiments/conceptviz_2/images/drawings/", item, "/"))
+  STIM_PATH <- here(paste0("experiments/conceptviz_2/get_stimuli/data/experiment_stimuli/sim_experiment_stimuli_", item, ".csv"))
+  
+  final_stim <- read_csv(STIM_PATH)
+  
+  plot_ids <- final_stim %>%
+    filter(hd_bin == sim_bin) %>%
+    sample_n(8) %>%
+    pivot_longer(3:4, names_to = "key_id_name", values_to = "key_id_num") %>%
+    arrange(hd_bin) %>%
+    mutate(key_id_num = as.factor(key_id_num)) %>%
+    arrange(trial_ID)
+  
+  long_files = paste0(JPEG_PATH, plot_ids$key_id_num, ".jpeg")
+  
+  rl = lapply(long_files, image_read)
+  gl = lapply(rl, grid::rasterGrob)
+  gridExtra::grid.arrange(grobs = gl, nrow = 8)
+}
+```
+
+## Chair
+```{r}
+plot_pairs("chair", 1)
+plot_pairs("chair", 5)
+plot_pairs("chair", 10)
+```
+
+## house
+```{r}
+plot_pairs("house", 1)
+plot_pairs("house", 5)
+plot_pairs("house", 10)
+```
+
+## Bird
+```{r}
+plot_pairs("bird", 1)
+plot_pairs("bird", 5)
+plot_pairs("bird", 10)
+```
+
+## tree
+```{r}
+plot_pairs("tree", 1)
+plot_pairs("tree", 5)
+plot_pairs("tree", 10)
+```
+
+## bread
+```{r}
+plot_pairs("bread", 1)
+plot_pairs("bread", 5)
+plot_pairs("bread", 10)
+```
+
+
+

@@ -1,0 +1,339 @@
+---
+title: Conceptviz 1 analyses
+author: Molly Lewis 
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc_float: true
+    code_folding: hide
+---
+  
+******
+******
+  
+```{r setup, include = F}
+rm(list = ls())
+
+# load packages
+library(knitr)
+library(rmarkdown)
+library(langcog)
+library(tidyverse)
+library(purrr)
+library(feather)
+library(forcats)
+library(googlesheets)
+library(jsonlite)
+library(broom)
+library(corrr)
+#source("../R_scripts/helpers.R")
+
+opts_chunk$set(echo = T, message = F, warning = F, 
+               error = F, tidy = F, cache = T, fig.height = 4)
+```
+
+## Read in data from google sheet
+```{r}
+d_raw <- gs_title("conceptviz_1_data") %>%
+            gs_read()
+
+d <- map_df(d_raw$data, fromJSON, simplifyDataFrame = TRUE) %>%
+  bind_cols(subj_id = d_raw$subj_id) %>%
+  select(subj_id, everything()) 
+```
+
+## Tidy data
+```{r}
+d_tidy <- d %>%
+  gather(variable, value, -subj_id) %>%
+  separate(variable, c("variable", "trial_num"), sep = "_T") %>%
+  spread(variable, value) %>%
+  mutate_at(c("trial_num", "haus_sim", "rating", "RT", "trial_ID",  "haus_bin"), as.numeric) %>%
+  mutate_at(c("category", "drawing_key_id_1", "drawing_key_id_2","trial_type", "subj_id"), as.factor)
+```
+
+## Attention Checks
+```{r}
+d_tidy %>%
+  filter(trial_type == "attention_check") %>%
+  select(subj_id, rating) %>%
+  count(rating) %>%
+  ggplot(aes(x = rating, y = n/200)) +
+  geom_bar(stat = "identity") +
+  ylab("proportion responses")+
+  ggtitle("prop. attention checks") +
+  theme_minimal()
+
+mean_attention_check_ratings = d_tidy %>%
+  filter(trial_type == "attention_check") %>%
+  group_by(subj_id) %>% 
+  summarize(mean = mean(rating)) %>%
+  filter(mean < mean(.$mean))
+```
+
+Mostly 1s as correct. 
+
+## hausdorff by decile and ratings
+```{r, fig.width = 5}
+d_tidy_crit <- d_tidy %>%
+  filter(subj_id %in% mean_attention_check_ratings$subj_id) %>%
+  filter(trial_type == "critical_trial") 
+
+means_ratings_by_bin <- d_tidy_crit %>%
+  group_by(haus_bin, category) %>%
+  multi_boot_standard(column = "rating", na.rm = TRUE)
+
+ggplot(means_ratings_by_bin, aes(x = haus_bin, y = mean, group = category, color = category)) +
+  geom_pointrange(aes(ymin = summary_ci_lower, ymax = summary_ci_upper)) +
+  geom_smooth(method = "lm") +
+  ylab("mean similarity rating") +
+  xlab("hausdorfff Distance Decile") +
+  ggtitle("Similarity Ratings by hausdorff Decile") +
+  scale_x_continuous(breaks = 1:10) +
+  theme_minimal()
+```
+
+## hausdorff continuous and ratings
+```{r, fig.width = 5}
+d_tidy_crit %>%
+  ggplot(aes(x = haus_sim, y = rating, group = category, color = category)) +
+  geom_smooth(method = "lm") +
+  ylab("mean similarity rating") +
+  xlab("hausdorfff Distance") +
+  ggtitle("Similarity Ratings by hausdorff Distance") +
+  theme_minimal()
+
+d_tidy_crit %>%
+  group_by(category) %>%
+  do(tidy(cor.test(.$rating, .$haus_sim))) %>%
+  select(-parameter, -method, -alternative) %>%
+  kable()
+```
+
+
+There's more variability in hausdorfff distance for bread, relative to tree, which explains the different slopes in the decile plot.
+
+## Hausdorff distance, Modified Hausdorff Distance, and Imagenet-NN cosine
+```{r, fig.width = 9}
+tree_all_measures <- read_csv(paste0("../../../data/hausdorff_similarities/pair_sim_drawings/pair_lists/balanced_lists/tree_all_measures.csv")) %>%
+    mutate_at(c("key_id_1", "key_id_2", "country_code_1","country_code_2"), as.factor) %>%
+  select(key_id_1, key_id_2, hd_sim, mhd_sim, cosine, country_code_1, country_code_2) %>%
+  mutate(category = "tree")
+
+bread_all_measures <- read_csv(paste0("../../../data/hausdorff_similarities/pair_sim_drawings/pair_lists/balanced_lists/bread_all_measures.csv")) %>%
+    mutate_at(c("key_id_1", "key_id_2", "country_code_1","country_code_2"), as.factor)  %>%
+  select(key_id_1, key_id_2, hd_sim, mhd_sim, cosine,  country_code_1, country_code_2)  %>%
+  mutate(category = "bread")
+
+all_measures <- d_tidy_crit %>%
+  rename(key_id_1 = drawing_key_id_1,
+         key_id_2 = drawing_key_id_2) %>%
+  left_join(bind_rows(tree_all_measures, bread_all_measures), by = c("key_id_1", "key_id_2", "category")) %>%
+  select(subj_id, trial_ID, category, rating, haus_sim, mhd_sim, cosine, country_code_1, country_code_2, trial_num) %>%
+  rename(hd_sim = haus_sim)
+
+all_measures %>%
+  gather("measure", "value", 3:5) %>%
+  ggplot(aes(x = value, y = rating, group = category, color = category)) +
+  geom_smooth(method = "lm") +
+  facet_grid(. ~ measure, scales = "free") +
+  theme_minimal()
+
+all_measures %>%
+  gather("measure", "value", 3:5) %>%
+  group_by(category, measure) %>%
+  do(tidy(cor.test(.$rating, .$value))) %>%
+  select(-parameter, -method, -alternative) %>%
+  kable()
+```
+
+Hausdorff Distance is better than Modified hausdorff Distance (MHD). For bread, MHD > cosine; For tree; MHD = cosine (but there's less variability).
+
+The correlations on the continous measures are modest, but I suspect that's because there's a ceiling on the correlation because we're using a likert scale.
+
+Measure models
+```{r}
+summary(lmer(rating ~ hd_sim + (1|subj_id), all_measures))
+
+summary(lmer(rating ~ scale(hd_sim) + scale(cosine) + (trial_num|subj_id), all_measures))
+summary(lm(rating ~ scale(hd_sim) + scale(cosine) , all_measures))
+
+```
+
+# Predicting distances from country dyadic measures measures
+```{r}
+precip_vars <- read_csv( "../../../data/supplementary_data/cultural_sim_measures/geo/country_climate_ratios.csv") 
+
+all_precips <- precip_vars %>%
+  bind_rows(precip_vars %>% rename(country_code_1 = country_code_2, country_code_2 = country_code_1))
+
+all_dyadic_vars <- read_csv("../../../data/supplementary_data/cultural_sim_measures/all_dyadic_vars.csv")  %>%
+  left_join(all_precips)
+```
+
+Get missing vars
+```{r}
+## centroids
+centroids <- read_tsv("../../../data/supplementary_data/cultural_sim_measures/geo/country_centroids/country_centroids_primary.csv") %>%
+  select(ISO3136, LAT, LONG) %>%
+  rename(country_code = ISO3136) 
+
+centroids_HK_GE <- centroids %>%
+  filter(country_code == "GE") %>%
+  bind_rows(data.frame(country_code ="HK", LAT = 22.28552, LONG = 114.15769)) %>%
+  bind_rows(centroids)
+  
+g_centroids <- geosphere::distm(cbind(centroids_HK_GE$LONG, centroids_HK_GE$LAT)) # in meters 
+rownames(g_centroids) <- centroids_HK_GE$country_code
+colnames(g_centroids) <- centroids_HK_GE$country_code
+
+all_centroid_dists <- reshape2::melt(g_centroids) %>%
+  rename(country_code_1 = Var1,
+         country_code_2 = Var2,
+         centroid_dist_meters = value) 
+
+#temp_precip
+climate <- read_csv("../../../data/supplementary_data/cultural_sim_measures/geo/all_climiate_data.csv")
+
+all_measures_climate <- all_measures %>%
+  distinct(country_code_1, country_code_2) %>%
+  left_join(climate, by = c("country_code_1" = "country_code")) %>%
+  rename(temp_1 = temp,
+         precip_1 = precip) %>%
+  left_join(climate, by = c("country_code_2" = "country_code")) %>%
+  rename(temp_2 = temp,
+         precip_2 = precip) %>%
+  mutate(precip_difference = abs(precip_2 - precip_1),
+         temp_difference = abs(temp_2 - temp_1)) %>%
+  select(country_code_1, country_code_2, precip_difference, temp_difference) 
+
+event_dists <- read_csv("../../data/supplementary_data/cultural_sim_measures/events/all_google_event_dists.csv")
+
+all_measures_with_dyadic <- all_measures %>%
+  left_join(all_dyadic_vars) %>%
+  select(-centroid_dist_meters, 
+         -precip_difference, -temp_difference, -log_normalized_n_events_all, -log_normalized_mean_imports_dollars) %>%
+  left_join(all_centroid_dists) %>%
+  left_join(all_measures_climate) %>%
+  left_join(event_dists)
+```
+
+
+```{r}
+########### Here's are the random model: ##################################
+summary(lmer(rating ~  scale(centroid_dist_meters) + (1 |category) + (1|subj_id), all_measures_with_dyadic))
+
+summary(lmer(rating ~ scale(centroid_dist_meters) + 
+               scale(log_normalized_n_events_all) + 
+               (1|category) + (1|subj_id), 
+              all_measures_with_dyadic))
+
+summary(lmer(rating ~  scale(centroid_dist_meters) + category + (1 |subj_id), all_measures_with_dyadic))
+
+summary(lmer(rating ~ scale(centroid_dist_meters) + 
+               scale(log_normalized_n_events_all) + 
+               category + (1 |subj_id), 
+              all_measures_with_dyadic))
+#####################################################################
+########### Here's are the fixed model: ##################################
+summary(lmer(rating ~  scale(centroid_dist_meters) * category + (1|subj_id), all_measures_with_dyadic))
+
+summary(lmer(rating ~ scale(centroid_dist_meters) + 
+               scale(log_normalized_n_events_all) + 
+               (1|category) + (1|subj_id), 
+              all_measures_with_dyadic))
+
+summary(lmer(rating ~  scale(centroid_dist_meters) + category + (1 |subj_id), all_measures_with_dyadic))
+
+summary(lmer(rating ~ scale(centroid_dist_meters) + 
+               scale(log_normalized_n_events_all) + 
+               category + (1 |subj_id), 
+              all_measures_with_dyadic))
+#####################################################################
+
+
+```
+
+
+```{r}
+
+
+
+
+corrs <- correlate(all_measures_with_dyadic %>% select(c(-1:-3,-8:-10, -13:-16)), 
+                   use = "complete.obs")  %>%
+  shave()
+
+rplot(corrs)
+
+all_measures_with_dyadic %>%
+    select(c( -9:-11, -14:-17)) %>%
+    gather("dyadic_measure", "value", 9:15) %>%
+    group_by(category, dyadic_measure) %>%
+    do(tidy(cor.test(.$rating, .$value))) %>%
+    select(-parameter, -method, -alternative) %>%
+    kable()
+
+summary(lm(rating ~ scale(log_normalized_n_events_all)  , all_measures_with_dyadic))
+
+summary(lm(rating ~ scale(centroid_dist_meters) + 
+             scale(precip_difference) + 
+             scale(temp_difference)  + 
+             category, all_measures_with_dyadic))
+
+
+
+summary(lmer(rating ~ scale(centroid_dist_meters) + scale(log_normalized_n_events_all) + scale(wals_euclidean_dist) + (1 |category), all_measures_with_dyadic))
+
+summary(lmer(rating ~ scale(log_normalized_n_events_all) + scale(centroid_dist_meters) + (1 |category) + (1 |subj_id), all_measures_with_dyadic))
+
+summary(lm(rating ~ scale(log_normalized_n_events_all)  scale(centroid_dist_meters)  *category , all_measures_with_dyadic))
+
+# plot each of tree and bread as a function of events, distance, and asjp
+
+
+item_means <- all_measures_with_dyadic %>%
+  mutate(trialname = paste0(category, trial_ID)) %>%
+  group_by(trialname) %>%
+  summarize(rating = mean(rating)) %>%
+  left_join(all_measures_with_dyadic %>% mutate(trialname = paste0(category, trial_ID)) %>% select(-rating), by = "trialname") %>%
+  group_by(trialname) %>%
+  slice(1) %>%
+  select(-subj_id)
+
+item_means %>%
+  filter(asjp_dist != 0) %>%
+  gather("measure", "value", c(11:12,17:21)) %>%
+  ggplot( aes(x = value, y = rating, color = category)) +
+    geom_point() +
+    geom_smooth(method = "lm") +
+    facet_wrap(~measure, scales = "free")
+
+
+
+```
+
+# RTS
+```{r}
+all_measures2 <- d_tidy_crit %>%
+  rename(key_id_1 = drawing_key_id_1,
+         key_id_2 = drawing_key_id_2) %>%
+  left_join(bind_rows(tree_all_measures, bread_all_measures), 
+            by = c("key_id_1", "key_id_2", "category")) %>%
+  select(category, RT, rating, haus_sim, mhd_sim, cosine) %>%
+  rename(hd_sim = haus_sim)
+a
+all_measures2 %>%
+  gather("measure", "value", 4:6) %>%
+  ggplot(aes(x = value, y = log(RT), group = category, color = category)) +
+  geom_smooth() +
+  facet_grid(. ~ measure, scales = "free") +
+  theme_minimal()
+
+all_measures2 %>%
+  gather("measure", "value", 4:6) %>%
+  ggplot(aes(x = value, y = log(RT), group = category, color = category)) +
+  geom_smooth() +
+  facet_grid(. ~ measure, scales = "free") +
+  theme_minimal()
+```

@@ -1,0 +1,17 @@
+base
+knitr
+rmarkdown
+langcog
+tidyverse
+ggplot2
+tibble
+tidyr
+readr
+purrr
+dplyr
+stringr
+forcats
+feather
+magick
+data.table
+here

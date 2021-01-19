@@ -1,0 +1,72 @@
+
+
+h {
+  font-size: 20px;
+  font-family: georgia;
+  font-weight:bold;
+}
+
+p {
+  font-size: 16px;
+  font-family: georgia;
+}
+
+/* sliders */
+/*align the left and right labels for the sliders properly*/
+.slider_table .left {
+  display: inline;
+  text-align: left;
+  font-size: 18px;
+  float: left;
+}
+
+.slider_table .right {
+  display: inline;
+  text-align: center;
+  float: right;
+  font-size: 18px;
+}
+
+.slider_target {
+  text-align: center;
+  background: "#ff0000";
+}
+
+.slider{
+  background: "#ff0000";
+}
+
+
+.ui-slider-range {
+  /* you could have a "range" which makes the slider to the left of the handle a different color from the background */
+  /*background: transparent;*/
+   background: "#ff0000";
+}
+
+.body-text {
+  font-family: Palatino Linotype, Bookman Antiqua, Palatino, serif;
+  font-size: 40px;
+  line-height: 20px;
+}
+
+#single_slider {
+  width: 300;
+  margin: auto;
+}
+
+#objImage{
+  width: 350px;
+  height: 350px;
+}
+
+.block-text2 {
+  font-size:18px;
+  width: 410px;
+  text-align: left;
+  margin: 0 auto;
+  margin-bottom: 0 auto;
+}
+
+
+
+
