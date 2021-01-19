@@ -2,18 +2,17 @@
 
 library(ecr) # computeAverageHausdorffDistance()
 library(StatMatch) # mahalanobis.dist()
-library(proxy)
+library(proxy) # euclidean distance
 library(here)
 library(tidyverse)
-#library(foreach)
-#library(doParallel)
+library(foreach)
+library(doParallel)
 library(parallel)
 
 CATEGORY_INFO_PATH <- here("data/raw/288_categories.csv")
 TARGET_COUNTRIES_PATH <- here("data/raw/20_countries.csv")
-DRAWING_DIRECTORY <- "/Users/mollylewis/Downloads/temp2/" #file.path("C:/Users/binz7/Documents/sampled_drawings")
-OUTPATH_DIRECTORY <- "/Users/mollylewis/Downloads/temp2/"
-N_COMP_CLUSTERS <- 3
+DRAWING_DIRECTORY <- file.path("C:/Users/binz7/Documents/tidy_drawings")
+OUTPATH_DIRECTORY <- file.path("C:/Users/binz7/Documents/distances_by_country_pairs")
 
 ############# FUNCTIONS ##########
 get_similarity_for_one_drawing_pair <- function(c1_df, c2_df){
@@ -21,8 +20,11 @@ get_similarity_for_one_drawing_pair <- function(c1_df, c2_df){
   # get euclidean and mahalanobis
   drawing1 <- matrix(c(c1_df$x, c1_df$y), length(c1_df$x), 2)
   drawing2 <- matrix(c(c2_df$x, c2_df$y), length(c2_df$x), 2)
+  
   maha <- NA #this is necessary because maha fails when two drawings are identical (e.g. for line)
-  maha <- try(mean(mahalanobis.dist(drawing1, drawing2)))
+  a <- try(mean(mahalanobis.dist(drawing1, drawing2)), silent = T)
+  maha <- ifelse(typeof(a) == "double", a, NA)
+
   eucl <- mean(proxy::dist(x = drawing1, y = drawing2, method = "euclidean"))
 
   # get hausdorff
@@ -50,7 +52,7 @@ get_distances_for_one_country_pair_and_category <- function(c1,
                   target_category, "_",
                   c1, "_sampled_drawings.csv")
 
-  c1_data <- read_csv(path1) %>%
+  c1_data <- read_csv(path1, col_types = "cclcnnnnc") %>%
     group_by(item) %>%
     nest()
 
@@ -58,7 +60,7 @@ get_distances_for_one_country_pair_and_category <- function(c1,
                   target_category, "_",
                   c2, "_sampled_drawings.csv")
 
-  c2_data <- read_csv(path2) %>%
+  c2_data <- read_csv(path2, col_types = "cclcnnnnc") %>%
     group_by(item) %>%
     nest()
 
@@ -69,7 +71,10 @@ get_distances_for_one_country_pair_and_category <- function(c1,
     unnest() %>%
     mutate(category = target_category,
            country1 = c1,
-           country2 = c2)
+           country2 = c2) %>%
+    ungroup() %>%
+    select(-item)
+    
 
   full_outpath <- paste0(distance_outpath, "/",
                  c1, "_",
@@ -88,12 +93,11 @@ categories <- read_csv(CATEGORY_INFO_PATH)
 
 country_category_pairs_to_loop <- crossing(country1 = twenty_countries$countries,
                                            country2 = twenty_countries$countries,
-                                           categories$category) %>%
+                                           category = categories$category) %>%
   filter(country1 < country2) %>%
   as.data.frame()
 
 # INITIATE CLUSTER
-cluster <- makeCluster(N_COMP_CLUSTERS, type = "FORK")
 
 parallel_wrapper <- function(i, combos, prefix_path, outpath){
   country1 <- combos %>% slice(i) %>% pull(country1)
@@ -107,9 +111,21 @@ parallel_wrapper <- function(i, combos, prefix_path, outpath){
                                                          outpath)
 }
 
-parLapply(cluster,
-          1:nrow(country_category_pairs_to_loop),
-          parallel_wrapper,
-          country_category_pairs_to_loop,
-          DRAWING_DIRECTORY,
-          OUTPATH_DIRECTORY)
+# parLapply(cluster,
+#           1:nrow(country_category_pairs_to_loop),
+#           parallel_wrapper,
+#           country_category_pairs_to_loop,
+#           DRAWING_DIRECTORY,
+#           OUTPATH_DIRECTORY)
+
+num_cores <- detectCores() - 1
+clusters <- parallel::makeCluster(num_cores)
+registerDoParallel(clusters)
+
+foreach(i = 1:54720, .packages = c("ecr", "StatMatch", "proxy", "purrr", "tidyr", "dplyr", "readr")) %dopar% {
+      parallel_wrapper(i, country_category_pairs_to_loop, DRAWING_DIRECTORY, OUTPATH_DIRECTORY)
+}
+
+stopCluster(clusters) 
+
+
