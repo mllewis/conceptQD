@@ -106,7 +106,7 @@ clusters <- parallel::makeCluster(num_cores)
 registerDoParallel(clusters)
 
 system.time(
-foreach(i = 3797:5760, .packages = c("ecr", "StatMatch", "proxy", "purrr", "tidyr", "dplyr", "readr")) %dopar% {
+foreach(i = 1:5760, .packages = c("ecr", "StatMatch", "proxy", "purrr", "tidyr", "dplyr", "readr")) %dopar% {
   parallel_wrapper(i, country_category_pairs_to_loop, DRAWING_DIRECTORY, OUTPATH_DIRECTORY)
 }
 )
