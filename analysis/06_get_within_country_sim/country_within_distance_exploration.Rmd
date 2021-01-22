@@ -1,0 +1,225 @@
+---
+title: Exploration of pairwise distances (within)
+subtitle:
+author: Molly Lewis
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc_float: no
+    code_folding: hide
+    number_sections: no
+    toc: yes
+---
+
+```{r setup, include = F}
+# load packages
+library(knitr)
+library(rmarkdown)
+library(tidyverse)
+library(here)
+library(corrr)
+library(langcog)
+
+opts_chunk$set(echo = T, message = F, warning = F,
+               error = F, tidy = F, cache = F)
+
+```
+
+```{r}
+
+MEAN_COUNTRY_DISTS <- here("data/processed/mean_sim_by_country_item.csv")
+
+mean_country_dists <- read_csv(MEAN_COUNTRY_DISTS,
+                               col_names = c("category","country", "log_avg_haus_mean","log_avg_haus_sd" ,"mahalanobis_mean", "mahalanobis_sd", "euclidean_mean"  , "euclidean_sd", "human_predic_sim_mean","human_predic_sim_sd", "log_human_predic_sim_mean", "log_human_predic_sim_sd" ))
+```
+
+## Items
+```{r}
+by_category <- mean_country_dists %>%
+  group_by(category) %>%
+  mutate(log_human_predic_sim_sd = log(human_predic_sim_sd)) %>%
+  select(category, human_predic_sim_mean, human_predic_sim_sd, log_human_predic_sim_sd) %>%
+  summarize_if(is.numeric, mean, na.rm = T)  %>%
+  rename(item = category)
+
+```
+
+```{r}
+WITHIN_ITEM_PREDICTORS <- here("data/raw/predictors/within_item_predictors.csv")
+
+item_predics <- read_csv(WITHIN_ITEM_PREDICTORS) 
+
+all_measures <- by_category %>%
+  left_join(item_predics) 
+
+all_measures %>%
+  select(item, category, everything()) %>%
+  pivot_longer(3:7) %>%
+  ggplot(aes(x = value)) +
+  geom_histogram() +
+  facet_wrap(~name, scale = "free")
+
+all_measures_trans <- all_measures %>%
+  mutate(log_aoa = log(aoa),
+         log_auditory = log(auditory + .01),
+         log_gustatory = log(gustatory + .01),
+         log_olfactory = log(olfactory + .01),
+         log_interoceptive = log(interoceptive + .01),
+         sq_conc_m = conc_m^2) %>%
+  select(-aoa, -auditory, -gustatory, -olfactory, -interoceptive) %>%
+  select(item, category, human_predic_sim_mean, human_predic_sim_sd, log_human_predic_sim_sd, conc_m, sq_conc_m, log_aoa, arousal, log_freq, valence, dominance)
+
+all_measures_trans %>%
+  select(item, category, everything()) %>%
+  pivot_longer(3:9) %>%
+  ggplot(aes(x = value)) +
+  geom_histogram() +
+  facet_wrap(~name, scale = "free")
+```
+
+```{r}
+
+var_pairs <- cross_df(list(var1 = names(all_measures_trans),
+              var2 = names(all_measures_trans))) %>%
+  filter(!(var1 %in% c("item", "category")),
+         !(var2 %in% c("item", "category")))
+
+get_cor <- function(v1, v2, d){
+  cor.test(d[[v1]], d[[v2]]) %>% 
+      tidy() %>%
+    mutate(var1 = v1,
+           var2 = v2) %>%
+    select(var1, var2, everything())
+} 
+
+m = map2_df(var_pairs$var1, var_pairs$var2, get_cor, all_measures_trans)
+
+corrs <- m %>%
+  filter(var1 %in% c("human_predic_sim_mean", "human_predic_sim_sd", "log_human_predic_sim_sd"),
+         !var2 %in% c("human_predic_sim_mean", "human_predic_sim_sd", "log_human_predic_sim_sd")) %>%
+  arrange(p.value) %>%
+  data.frame()
+
+ggplot(corrs, aes(x = var2, y = estimate, color = var2)) +
+  geom_pointrange(aes(ymin = conf.low, ymax = conf.high)) +
+  facet_wrap(.~var1) +
+  geom_hline(aes(yintercept = 0), linetype = 2) + 
+  theme_classic() +
+    theme(axis.text.x = element_text(angle = 90)) 
+
+
+lm(human_predic_sim_sd ~ conc_m + log_aoa + arousal + log_freq + valence + dominance,  all_measures_trans) %>% 
+  summary()
+
+lm(human_predic_sim_mean ~ conc_m + log_aoa + arousal + log_freq + valence + dominance,  all_measures_trans) %>% 
+  summary()
+
+lm(log_human_predic_sim_sd ~ conc_m + log_aoa + arousal + log_freq + valence + dominance,  all_measures_trans) %>% 
+  summary()
+```
+
+Words that are more frequent and more positively valences have more within country similarity, on average.
+Words that are low arousal, low concreteness, high haptic, high aoa, low auditory, low frequency, low olfactory low valence have high variance. 
+
+Words that are more frequent and more positively valences have more within country similarity, on average.
+Words that are learned early, highly frequency,  high arousal and high valence, high concreteness have low variance. 
+
+### By category
+```{r}
+all_measures_trans_by_cat_mean <- all_measures_trans %>%
+  group_by(category) %>%
+  multi_boot_standard(col = "human_predic_sim_mean")
+
+ggplot(all_measures_trans_by_cat_mean, aes(x = fct_reorder(category, mean), y = mean, fill = category)) +
+  geom_bar(stat = "identity") +
+  geom_linerange(aes(ymin = ci_lower, ymax = ci_upper)) +
+  geom_hline(aes(yintercept = 0), linetype = 2) + 
+  theme_classic() +
+  ylab("MEAN") +
+    theme(axis.text.x = element_text(angle = 90),
+                    legend.position = "none") 
+
+all_measures_trans_by_cat_sd <- all_measures_trans %>%
+  group_by(category) %>%
+  multi_boot_standard(col = "human_predic_sim_sd")
+
+ggplot(all_measures_trans_by_cat_sd, aes(x = fct_reorder(category, mean), y = mean, fill = category)) +
+  geom_bar(stat = "identity") +
+  geom_linerange(aes(ymin = ci_lower, ymax = ci_upper)) +
+  geom_hline(aes(yintercept = 0), linetype = 2) + 
+  theme_classic() +
+  ylab("SD") +
+    theme(axis.text.x = element_text(angle = 90), 
+          legend.position = "none") 
+```
+
+## Countries
+
+```{r}
+COUNTRY_PREDIC_PATH <- here("data/raw/predictors/conceptqd\ predictors\ -\ within\ culture.csv")
+country_predics <-  read_csv(COUNTRY_PREDIC_PATH) %>%
+  clean_names() %>%
+  select(country, country_name, pdi, uai, idv, mas, area, population_density, racial_diversity_ethnic, population, gini_index)
+
+by_country <- mean_country_dists %>%
+  group_by(country) %>%
+  select(country, human_predic_sim_mean, human_predic_sim_sd) %>%
+  summarize_if(is.numeric, mean, na.rm = T) 
+
+country_with_predics <- by_country %>%
+  left_join(country_predics)
+
+country_with_predics %>%
+  select(country, country_name, everything()) %>%
+  pivot_longer(3:13) %>%
+  ggplot(aes(x = value)) +
+  geom_histogram() +
+  facet_wrap(~name, scale = "free")
+
+country_with_predics_tidy <- by_country %>%
+  left_join(country_predics) %>%
+  mutate(log_area = log(area),
+         log_pop = log(population),
+         log_pdi = log(pdi))
+
+```
+
+```{r}
+
+var_pairs <- cross_df(list(var1 = names(country_with_predics_tidy),
+              var2 = names(country_with_predics_tidy))) %>%
+  filter(!(var1 %in% c("country", "country_name")),
+         !(var2 %in% c("country", "country_name")))
+
+m = map2_df(var_pairs$var1, var_pairs$var2, get_cor, country_with_predics_tidy)
+
+corrs <- m %>%
+  filter(var1 %in% c("human_predic_sim_mean", "human_predic_sim_sd"),
+         !var2 %in% c("human_predic_sim_mean", "human_predic_sim_sd")) %>%
+  arrange(p.value) %>%
+  data.frame()
+
+lm(human_predic_sim_sd ~
+     log_pop + 
+     gini_index + 
+     population_density
+   , country_with_predics_tidy) %>%
+  summary()
+
+
+lm(human_predic_sim_sd ~
+     log(racial_diversity_ethnic) +
+    log_area +
+     log(population_density) +
+     log_pop + 
+     #idv   +
+     log(gini_index)
+   , country_with_predics_tidy) %>%
+  summary()
+
+lm(human_predic_sim_mean~ log(racial_diversity_ethnic) +
+     log(area) + log(population_density) + log_pop + idv + log(gini_index), country_with_predics_tidy) %>%
+  summary()
+
+
+```

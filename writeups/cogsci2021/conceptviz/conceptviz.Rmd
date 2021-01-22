@@ -29,7 +29,7 @@ keywords: >
     Add your choice of indexing terms or keywords; kindly use a semi-colon; between each term.
     
 output: cogsci2016::cogsci_paper
-#final-submission: \cogscifinalcopy
+final-submission: \cogscifinalcopy
 
 ---
 
@@ -47,29 +47,229 @@ library(png)
 library(grid)
 library(ggplot2)
 library(xtable)
+library(here)
+library(tidyverse)
+library(broom)
+library(numform)
+library(knitr)
+library(broom)
+theme_set(theme_classic(base_size = 11))
 ```
 
+```{r, helpers}
+
+get_p_print <- function(p){
+  case_when(p < .0001 ~ "< .0001",
+            p < .001 ~ "< .001",
+            p < .01 ~ "< .01",
+            p < .05 ~ "< .05",
+            TRUE ~ paste0("= ", round(p, 2)))}
+
+get_corr_text <- function(var1, var2) {
+  cor.test(var1, var2) %>%
+    tidy() %>%
+    mutate(p_sig = get_p_print(p.value),
+       r_string = paste0("_r_(", parameter ,") = ", round(estimate, 2),
+                         ", _p_ ", p_sig)) %>%
+    pull(r_string)
+}
+
+
+```
 
 
 # Introduction
 
 
-# Study 1:  Measuring drawing similarity computationally
+# Study 1:  Estimating drawing similarity
+
+To quantify the similarity between two arbitrary drawings, we collected human judgments of the similarity for a sample of drawing pairs. 
+
+## Methods
+### Participants
+```{r}
+
+RAW_HUMAN_DATA <- here("data/processed/tidy_raw_human_data.csv")
+
+all_data <- read_csv(RAW_HUMAN_DATA, guess_max = 100000) %>%
+  mutate(subj_id = as.factor(subj_id))
+
+#####  do subject exclusions #####
+complete_subj_ids <- all_data %>% # get sub
+  count(subj_id) %>%
+  filter(n == 52) %>%
+  pull(subj_id)
+
+all_data_complete <- all_data %>%
+   filter((subj_id %in% complete_subj_ids)) # remove subj who didn't do all trials
+
+missed_one_attention_subj_ids <- all_data_complete %>%
+  select(subj_id, trial_type, rating) %>%
+  filter(trial_type == "attention_check",
+         rating > 2) %>%
+  count(subj_id)  %>%
+  pull(subj_id)
+
+all_data_filtered  <- all_data_complete %>%
+  filter(trial_type == "critical_trial",
+         !(subj_id %in% missed_one_attention_subj_ids), # remove subjs who missed one attention check
+         !(is.na(rating))) %>% # data on a minority of first trials was lost
+  select(run, subj_id, category, trial_num, pair_id, pair_id_old,
+         drawing_key_id_1, drawing_key_id_2, haus_bin, haus_sim, rating, rt)
+```
+
+```{r quickdrawapp, fig.env = "figure", fig.align='center', fig.width=3.4, fig.height=2, set.cap.width=T, num.cols.cap=1, fig.cap = 'Screenshots of the Quick, Draw! App (https://quickdraw.withgoogle.com/). Participants arefirst cued with a word (e.g. "watermelon"; left), and then asked to sketch the corresponding object in under 20 seconds (right).'}
+img <- png::readPNG("figs/quickdrawapp.png")
+grid::grid.raster(img)
+```
+
+We recruited `r length(unique(all_data_complete$subj_id))` participants through Amazon Mechanical Turk and an undergraduate subject pool. We excluded `r length(missed_one_attention_subj_ids)` participants who missed an attention check question (see procedure below). Our final sample of included `r length(unique(all_data_filtered$subj_id))` participants. 
+
+### Stimuli
+Drawings were taken from the Quick, Draw! dataset collected by Google (https://github.com/googlecreativelab/quickdraw-dataset). The drawings were collected through an online app (https://quickdraw.withgoogle.com/) in which participants were cued with a word (e.g., "watermelon") and asked to sketch the corresponding object in under 20 seconds (\autoref{fig:quickdrawapp}).  As participants sketched, a neural net trained on other participants' drawings made guesses about the cue word. Once the neural net guessed correctly, the app progressed to the next word cue. Each participant completed up to 6 drawings per session. Each drawing is represented as a X x X binary matrix. The quickdraw dataset contains over XX drawings collected from participants worldwide.
+
+
+
+```{r examplestim, fig.env = "figure", fig.align='right', fig.width=4, fig.height=4, set.cap.width=T, num.cols.cap=1, fig.cap = 'Example stimuli pairs for the cue ``bread" sampled from each hausdorff distance decile (1 = most similiar; 10 = least similar).'}
+img <- png::readPNG("figs/example_grid_final.png")
+grid::grid.raster(img)
+```
+
+```{r expscreenshot, fig.env = "figure", fig.align='center', fig.width=4, fig.height=2, set.cap.width=T, num.cols.cap=1, fig.cap = 'Screenshot of the norming procedure in Study 1. Participants were presented with pairs of drawings from the Quick, Draw! dataset and asked to make judgments about their visual similarity.'}
+img <- png::readPNG("figs/expscreenshot.png")
+grid::grid.raster(img)
+```
+
+For the current study, we sampled 1,000 drawing pairs for each of  five word cues: "tree", "bread", "chair", "house" and "bird". In order to include a range of drawing similarities in our stimuli, we quantified the similarity between drawings in a pair using a computational measure of visual image similarity commonly used in machine vision, called hausdorff distance [@huttenlocher1993comparing;@taha2015metrics]. Informally, hausdorff distance quantifies the similarity of two images by treating each image as a set of x-y coordinates, and calculating the Euclidean norm between each point in  one image to the closest point in the other.  The hausdorff distance is the maximum of these pairwise distances (the distance between the most mismatched points).   We calculated hausdorff distance for each drawing pair and then sampled 20 drawing pairs from each hausdorff distance decile (see \autoref{fig:examplestim}). Our final stimuli list included 200 drawing pairs for each of the 5 target cues . 
+
+### Procedure
+
+
+```{r}
+BY_PAIR_MEANS <- here("data/processed/tidy_human_data_with_computational_measures.csv")
+item_pair_means <- read_csv(BY_PAIR_MEANS) %>%
+  mutate(log_haus_sim = log(haus_sim))
+```
+
+```{r study1corr, fig.env="figure",fig.align = "center", fig.width=3.4, fig.height=4, fig.cap = "Relationship between human judgments of drawing similarity and drawing similarity estimated from a computational measure, log hausdorff distance. Each point corresponds to a drawing pair (N = 1,000). The color lines show the best fit for each of the five individual cue words; black line shows the best fit for all drawing pairs and corresponding standard error." }
+human_haus_corr <- cor.test(item_pair_means$mean,
+                            item_pair_means$haus_sim)
+
+human_haus_cor_print_text <-  human_haus_corr %>%
+    tidy() %>%
+    mutate(p_sig = get_p_print(p.value),
+         r_string = paste0("_r_(", parameter ,") = ", round(estimate, 2),
+                           ", _p_ ", p_sig)) %>%
+  pull(r_string)
+
+item_pair_means %>%
+  ggplot(aes(x = log_haus_sim, y = mean )) +
+  geom_point(alpha = .2, size = .4)  +
+  geom_smooth(method = "lm", aes(group = category, 
+             color = category), se = F, alpha = .1, size = .6) +
+  geom_smooth(method = "lm",  size = 1.5, color = "black") +
+  xlab("Log Hausdorff Distance") +
+  ylab("Human Dissimilarity Rating") +
+  scale_y_continuous(breaks=1:7) +
+  annotate("text", y = 1.5, x = 5, label = paste0("italic(r) ==  ", 
+                                                f_num(human_haus_corr$estimate, 2)),
+           color = "red", size = 4, parse = T) + 
+  scale_color_discrete(name = "cue word") +
+    guides(color = guide_legend(nrow = 2),
+           override.aes = list(shape = 1)) +
+  theme_classic() +
+  theme(legend.position = "bottom") 
+
+human_model <- lm(mean ~ haus_sim, item_pair_means) %>%
+  summary()
+
+total_variance_haus <- round(human_model$r.squared * 100, 2)
+```
+
+
+Participants were instructed to rate how similar pairs of drawings were to each other on a 7-pt Likert scale, ranging from "almost identical" to "completely different" (\autoref{fig:expscreenshot}). Each participant rated a sample of 50 drawing pairs from a single cue word. As an attention check, we also included two additional trials where the two drawings were identical to each other. Participants were excluded from the final sample if they responded 3 or higher on the Likert scale for either of these two trials. Each drawing pair was rated by `r round(mean(item_pair_means$n),2)` participants on average (*SD* =  `r round(sd(item_pair_means$n),2)`).
+
+## Results
+
+ Log Hausdorff distance was moderately positively correlated with human judgments of visual dissimilarity (`r human_haus_cor_print_text`; \autoref{fig:study1corr}), accounting for `r total_variance_haus`% percent of the variance in human judgments.
+
+We next tried to better predict human similarity judgment using additional computational measures of similarity. We examined three new measures: Log average Hausdorff distance [AHD; @taha2015metrics], Euclidean distance (ED) and Mahalanobis distance (MD). Log average Hausdorff distance is similar to the Hausdorff distance metric described above, but is less sensitive to outliers. Average Hausdorff distance is calculated by taking the Euclidean norm between each point in one image to the closest point in the other, and then taking the average across all point pairs and log transforming. Euclidean distance is calculated as the average pairwise Euclidean distance between all points. Mahalanobis distance [@] is similar to Euclidean distance, but takes into account the correlation of points in the drawings. 
+
+```{r}
+HUMAN_PAIRS_COMPUTATIONAL <- here("data/processed/tidy_human_data_with_computational_measures.csv")
+human_pairs_computational <- read_csv(HUMAN_PAIRS_COMPUTATIONAL)
+
+euc_mahal_cor  <- get_corr_text(human_pairs_computational$euclidean,
+                                human_pairs_computational$mahalanobis) 
+
+euc_avh_cor  <- get_corr_text(human_pairs_computational$euclidean,
+                              log(human_pairs_computational$avg_haus)) 
+
+mahl_avh_cor <- get_corr_text(human_pairs_computational$mahalanobis,
+                              log(human_pairs_computational$avg_haus)) 
+
+hum_mahal_cor  <- get_corr_text(human_pairs_computational$mean,
+                                human_pairs_computational$mahalanobis) 
+
+hum_avh_cor  <- get_corr_text(human_pairs_computational$mean,
+                              log(human_pairs_computational$avg_haus)) 
+
+hum_euc_cor <- get_corr_text(human_pairs_computational$mahalanobis,
+                              log(human_pairs_computational$euclidean)) 
+```
+
+```{r humanmodelparams, results="asis"}
+human_model_comp <- lm(mean ~ log(avg_haus) + mahalanobis + euclidean,
+ human_pairs_computational)  %>%
+    summary() 
+
+human_model_comp_params <- human_model_comp %>%
+  tidy() %>%
+  mutate(p.value = "<.001") %>%
+  mutate_if(is.numeric, round, 2) %>%
+  mutate(term = c("(Intercept)", "Log Avg. Haus.",
+                                  "Mahalanobis", "Euclidean")) %>%
+  column_to_rownames("term")
+
+colnames(human_model_comp_params) <- c("Estimate", "SE", "t-value", "Pr(>|t|)")
+ 
+human_model_comp_params_tab <- xtable::xtable(human_model_comp_params,
+                       caption = "Parameters of an additive linear model predicting human similarity judgment of 1,000 drawing pairs in Study 1 from three computational similarity measures. Log Avg. Haus. = Log average Hausdorff distance. ")
+
+print(human_model_comp_params_tab, type="latex", comment = F, table.placement = "t")
+
+human_model <- lm(mean ~ haus_sim, item_pair_means) %>%
+  summary()
+
+total_variance_comp <- round(human_model_comp$r.squared * 100, 0)
+```
+
+```{r mdsfig, out.width = "100%", fig.cap = "Multi-dimensional scaling solution of pairwise similarity of 100 bird drawings judged in Study 1. Similarity is estimated from as the predicted values from a model predicting human judgements with three computational similarity measures (log average Hausdorff distance, Mahalnobis distance, and Euclidean distance)."}
+include_graphics("figs/bird_mds.pdf")
+```
+
+All three distance measures were correlated with human similarity judgments, (AHD-ED: `r euc_avh_cor`; AHD-MD: `r mahl_avh_cor`; ED-MD: `r euc_mahal_cor`),  and with each other (AHD: `r hum_avh_cor`; ED: `r hum_euc_cor`; MD: `r hum_euc_cor`). We next fit an additive linear model predicting human judgments with each of these three predictors. This model accounted for ``r total_variance_comp`% of the variance in human judgments (see Table 1 for model parameters). Figure \autoref{fig:mdsfig}) shows a 2D multi-dimensional scaling solution of the predicted human similarity ratings for a sample of one hundred "bird" drawings. 
+In sum, Study 1 
+
+
+
 
 # Study 2: Cross-person meaning variability
 
 ## items: which items are more variable across people? 
 word predictors of variability  (Concreteness, Frequency, Semantic category, AoA)
 
+joy plots of items with high and log variability
+
 ## countries - across items, which countries have the most variability?
 country predictors of variability
 
+prototype fig. 
+
 # Study 3: Cross-cultural meaning variability
-predictors of cross-cultural similarity (Geographical distance, Cultural distance  (dspace), weather, Language distance, semantic alignment?)
-interactions with item?
+## predictors of cross-cultural similarity (Geographical distance, Cultural distance  (dspace), weather, Language distance, semantic alignment?)
 
-# Study 4: Language as a predictor of similarity
-
+## interactions with item? (with embedding models?)
 
 # Acknowledgements
 

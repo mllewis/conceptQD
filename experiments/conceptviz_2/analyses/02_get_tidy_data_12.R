@@ -5,9 +5,9 @@ library(here)
 library(jsonlite)
 library(langcog)
 
-DATA_PATH_CV1_1 <- here("experiments/conceptviz_1/data/conceptviz_1_raw_data.csv")
-DATA_PATH_CV2_12 <- here("experiments/conceptviz_2/data/run12/")
-DATA_PATH_CV2_3 <- here("experiments/conceptviz_2/data/run3/")
+DATA_PATH_CV1_1 <- here("experiments/conceptviz_1/data/raw/conceptviz_1_raw_data.csv")
+DATA_PATH_CV2_12 <- here("experiments/conceptviz_2/data/raw/run12/")
+DATA_PATH_CV2_3 <- here("experiments/conceptviz_2/data/raw/run3/")
 BY_PAIR_MEANS <- here("experiments/conceptviz_2/data/by_item_means.csv")
 
 

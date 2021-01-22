@@ -12,6 +12,10 @@ data/raw/sampled_drawings/*
 data/processed/sample_pairs.csv
 data/processed/tidy_human_drawings/*
 data/raw/raw_human_drawings/*
+analysis/01_human_data/stim_example_fig/fig_drawings/*
+analysis/01_human_data/stim_example_fig/sample_grids/*
+analysis/01_human_data/mds_fig/fig_drawing/*
+
 
 
 *.log

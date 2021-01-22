@@ -1,0 +1,132 @@
+---
+title: Get model fit predicting human judgments
+subtitle: 
+author: Molly Lewis 
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc_float: no
+    code_folding: hide 
+    number_sections: no
+    toc: yes
+---
+
+```{r setup, include = F}
+# load packages
+library(knitr)
+library(rmarkdown)
+library(here)
+library(tidyverse)
+library(lme4)
+library(broom)
+
+opts_chunk$set(echo = T, message = F, warning = F, 
+               error = F, tidy = F, cache = F)
+
+```
+
+There are 1000 image pairs (200 for each of the 5 categories). Below are the distribution of distances and log distances for each of the measures:
+
+```{r}
+DISTANCE_DIRECTORY <- here("data/processed/tidy_human_data_with_computational_measures.csv")
+
+distance_data <- read_csv(DISTANCE_DIRECTORY)
+
+tidy_distance_data <- distance_data %>%
+  rename(human_mean_dist = mean) %>%
+  select(category, human_mean_dist, mahalanobis, euclidean, avg_haus, eucllidean2) %>%
+  mutate(log_mahalanobis = log(mahalanobis),
+         log_euclidean = log(euclidean),
+         log_avg_haus = log(avg_haus),
+         sq_human_mean_dist = human_mean_dist ^2)
+
+long_dists <- tidy_distance_data %>%
+  pivot_longer(cols = human_mean_dist:sq_human_mean_dist)
+
+long_dists %>%
+  ggplot(aes(x = value)) +
+  geom_density(aes(color = category)) +
+  facet_wrap( ~name, scale = "free")
+
+```
+
+Let's use log average hausdorf and square human judgments, and leave the others as is.  Note that the hausdorf measure is slightly different here than the one used to calculate bins (avg_haus vs. haus_sim), but the two are correlated.
+
+```{r}
+cor.test(log(distance_data$avg_haus), log(distance_data$haus_sim))
+
+
+distance_data %>%
+  ggplot(aes(x = log(haus_sim), y = log(avg_haus))) +
+  geom_point() +
+  geom_smooth(method = "lm")
+```
+
+Now let's fit a model predicting human judgments with the three computational measures
+
+## Possible linear models:
+### Linear model
+```{r}
+lm_model <- lm((human_mean_dist^2)~ log_avg_haus + mahalanobis  + euclidean, tidy_distance_data)
+summary(lm_model)
+```
+
+R2 of .24. 
+
+```{r}
+lm_model <- lm(human_mean_dist~ log_avg_haus + mahalanobis  + euclidean, tidy_distance_data)
+summary(lm_model)
+```
+
+R2 of .24. 
+
+
+### Mixed effect model
+```{r}
+lmer_model <- lmer(human_mean_dist~ log_avg_haus + mahalanobis  + euclidean + (1|category), tidy_distance_data)
+summary(lmer_model)
+```
+
+Predict back to original to get R2 for lmer, ignoring random effect structure.
+```{r}
+dists_with_predictions <- tidy_distance_data %>%
+  mutate(lm_predictions = predict(lm_model),
+         lmer_predictions = predict(lmer_model, re.form = NA))
+
+lm(human_mean_dist ~ lm_predictions, dists_with_predictions) %>%
+  summary()
+
+lm(human_mean_dist ~ lmer_predictions, dists_with_predictions) %>%
+  summary()
+```
+R2 of .24. 
+
+lmer model doesn't improve fit. 
+
+Exploring a few other models:
+
+```{r}
+lm_model_interact <- lm(human_mean_dist~ log_avg_haus * mahalanobis  * euclidean, tidy_distance_data)
+summary(lm_model_interact)
+```
+A model with all interactions only improves R2 only a little bit. Let's stick with the additive. 
+
+Including the other euclidean meausure accounts for additional 5% of variance, but we don't have this calcualted for all the pairs (do this later).
+```{r}
+lm_model_euc2 <- lm(human_mean_dist~ log_avg_haus + mahalanobis  + euclidean + eucllidean2, tidy_distance_data)
+summary(lm_model_euc2)
+```
+
+## Save model parameters
+```{r, eval = F}
+MODEL_OUT <- here("data/processed/human_data_predic_model_params.csv")
+
+tidy_model <- lm_model %>%
+  tidy()
+
+write_csv(tidy_model, MODEL_OUT)
+```
+
+
+
+

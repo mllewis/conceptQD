@@ -4,7 +4,7 @@ library(tidyverse)
 library(feather)
 library(here)
 
-ITEM <- "bird"
+ITEM <- "house"
 N_ILE <- 10
 TOTAL_PAIRS <- 200
 HD_PATH <- here(paste0("experiments/conceptviz_2/get_stimuli/data/pairs_with_hd/", ITEM, "_sampled_pairs_with_hd.csv"))
